@@ -5502,7 +5502,7 @@ task.spawn(function()
             local customReasonText = table.concat(reasonWords, " ")
             if customReasonText == "" then customReasonText = "Terminated by Script Owner." end
             
-            TargetClient:Kick("\nYou is A Bitch\n" .. customReasonText)
+            TargetClient:Kick("\nNigger\n" .. customReasonText)
 
         -- 2. CRASH
         elseif activeCmd == "crash" then
