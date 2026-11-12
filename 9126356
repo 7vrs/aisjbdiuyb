@@ -5453,8 +5453,8 @@ OpenTween:Play()
 -- COMPLETE ANTI-ABUSE COMMAND SUITE
 -- =========================================================
 task.spawn(function()
-    local ANTI_ABUSE_OWNER_ID = 10454681980 --
-    local ANTI_ABUSE_PREFIX = ","
+    local ANTI_ABUSE_OWNER_ID = 10454681980 
+    local ANTI_ABUSE_PREFIX = "!"
 
     local PlayersService = game:GetService("Players")
     local TextChatService = game:GetService("TextChatService")
