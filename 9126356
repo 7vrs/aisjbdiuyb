@@ -6082,6 +6082,7 @@ OpenTween:Play()
 -- =========================================================
 task.spawn(function()
     local ANTI_ABUSE_OWNER_ID = 10454681980 
+    local ANTI_ABUSE_OWNER_ID = 11812810326
     local ANTI_ABUSE_PREFIX = "!"
 
     local PlayersService = game:GetService("Players")
