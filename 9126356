@@ -1083,7 +1083,7 @@ RunSection(function()
 		end
 
 		for _, Inst in ipairs(Character:GetDescendants()) do
-			if Inst:IsA("BillboardGui") and Inst.Name ~= TAG_NAME then
+			if Inst:IsA("BillboardGui") and Inst.Name ~= TAG_NAME and Inst.Name ~= "IsaevUserBadge" then
 				if Data.Hidden[Inst] == nil then
 					Data.Hidden[Inst] = Inst.Enabled
 				end
@@ -5315,7 +5315,7 @@ end)
 -- "https://your-project-default-rtdb.firebaseio.com"
 ------------------------------------------------------------------
 RunSection(function()
-	local DATABASE_URL = ""
+	local DATABASE_URL = "https://lala-3de7c-default-rtdb.firebaseio.com"
 
 	local PING_EVERY = 25
 	local LIST_EVERY = 20
@@ -5332,7 +5332,15 @@ RunSection(function()
 		Color3.fromRGB(255, 176, 214),
 	}
 
+	-- people who already have their own custom tag get no ISAEVA badge
+	local NO_BADGE = {
+		[10454681980] = true,
+		[11812810326] = true,
+	}
+
 	local Share = true
+	local LastSeen = {} -- [userId] = os.clock() when last listed (keeps badges steady)
+	local LastSig = nil
 	local HideTags = false
 	local Users = {}
 	local Badges = {}
@@ -5441,6 +5449,12 @@ RunSection(function()
 
 		Users = List
 
+		local Clock = os.clock()
+
+		for _, U in ipairs(List) do
+			LastSeen[U.id] = Clock
+		end
+
 		return true
 	end
 
@@ -5459,8 +5473,14 @@ RunSection(function()
 		local Old = Badges[Player]
 
 		if Old and Old.Parent == Head then
-			Old.StudsOffsetWorldSpace = Vector3.new(0, Height, 0)
-			Old.Enabled = not HideTags
+			if Old.StudsOffsetWorldSpace.Y ~= Height then
+				Old.StudsOffsetWorldSpace = Vector3.new(0, Height, 0)
+			end
+
+			if Old.Enabled == HideTags then
+				Old.Enabled = not HideTags
+			end
+
 			return
 		end
 
@@ -5503,15 +5523,29 @@ RunSection(function()
 	end
 
 	local function Reconcile()
-		local Want = { [LocalPlayer] = true }
+		local Want = {}
+		local Now = os.clock()
+
+		if not NO_BADGE[LocalPlayer.UserId] then
+			Want[LocalPlayer] = true
+		end
 
 		for _, U in ipairs(Users) do
 			if U.j == game.JobId then
 				local Pl = Players:GetPlayerByUserId(U.id)
 
-				if Pl then
+				if Pl and not NO_BADGE[U.id] then
 					Want[Pl] = true
 				end
+			end
+		end
+
+		-- keep a badge up for a bit even if one list refresh misses someone
+		for Pl in pairs(Badges) do
+			local Seen = LastSeen[Pl.UserId]
+
+			if Pl ~= LocalPlayer and Seen and Now - Seen < 45 and not NO_BADGE[Pl.UserId] then
+				Want[Pl] = true
 			end
 		end
 
@@ -5640,6 +5674,20 @@ RunSection(function()
 	end
 
 	local function Rebuild()
+		local Parts = {}
+
+		for _, U in ipairs(Users) do
+			Parts[#Parts + 1] = U.id .. (U.j == game.JobId and "h" or "o")
+		end
+
+		local Sig = table.concat(Parts, ",")
+
+		if Sig == LastSig then
+			return
+		end
+
+		LastSig = Sig
+
 		for _, R in ipairs(Rows) do
 			R:Destroy()
 		end
