@@ -416,10 +416,11 @@ local MiscPage = MakePage()
 local FlingPage = MakePage()
 local SettingsPage = MakePage()
 local ConfigsPage = MakePage()
+local OthersPage = MakePage()
 local Custom = MakePage()
 
-local Pages = { CombatPage, WeavePage, MiscPage, FlingPage, SettingsPage, ConfigsPage, Custom }
-local TabIcons = { "⚔️", "☁️", "⚡", "🎖️", "⚙️", "💾", "🎨" }
+local Pages = { CombatPage, WeavePage, MiscPage, FlingPage, SettingsPage, ConfigsPage, OthersPage, Custom }
+local TabIcons = { "⚔️", "☁️", "⚡", "🎖️", "⚙️", "💾", "👥", "🎨" }
 
 -- resize handle: bottom-right corner (invisible, but it still works)
 local Grip = New("TextButton", {
@@ -922,6 +923,44 @@ local function IsAlive()
 end
 
 ------------------------------------------------------------------
+-- moving gradient text (discord style): the colours slide along the word
+------------------------------------------------------------------
+local Anim = { Items = {} }
+local AnimClock = 0
+
+local function CycleColor(Colors, X)
+	local N = #Colors
+	local P = (X % 1) * N
+	local I = math.floor(P)
+	return Colors[I % N + 1]:Lerp(Colors[(I + 1) % N + 1], P - I)
+end
+
+function Anim.Add(Gradient, Colors, Speed)
+	table.insert(Anim.Items, { G = Gradient, C = Colors, S = Speed or 0.25 })
+end
+
+Conn(RunService.Heartbeat:Connect(function(dt)
+	AnimClock += dt
+
+	for I = #Anim.Items, 1, -1 do
+		local It = Anim.Items[I]
+
+		if not It.G.Parent then
+			table.remove(Anim.Items, I)
+		else
+			local Points = {}
+			local Phase = AnimClock * It.S
+
+			for K = 0, 8 do
+				Points[#Points + 1] = ColorSequenceKeypoint.new(K / 8, CycleColor(It.C, K / 8 + Phase))
+			end
+
+			It.G.Color = ColorSequence.new(Points)
+		end
+	end
+end))
+
+------------------------------------------------------------------
 -- SECTION: custom name tags (replaces the old king outlines)
 -- Peace = black -> blue, Seth = white -> blue.
 -- Their real name and any old badge above the head is hidden for you.
@@ -930,13 +969,25 @@ RunSection(function()
 	local TAGS = {
 		[10454681980] = {
 			Text = "Peace",
-			Colors = { Color3.fromRGB(0, 0, 0), Color3.fromRGB(30, 60, 190), Color3.fromRGB(70, 150, 255) },
+			Colors = {
+				Color3.fromRGB(0, 0, 0),
+				Color3.fromRGB(12, 34, 130),
+				Color3.fromRGB(60, 140, 255),
+				Color3.fromRGB(12, 34, 130),
+			},
 			Stroke = Color3.fromRGB(190, 215, 255),
+			Speed = 0.22,
 		},
 		[11812810326] = {
 			Text = "Seth",
-			Colors = { Color3.fromRGB(255, 255, 255), Color3.fromRGB(150, 195, 255), Color3.fromRGB(60, 130, 255) },
+			Colors = {
+				Color3.fromRGB(255, 255, 255),
+				Color3.fromRGB(160, 205, 255),
+				Color3.fromRGB(60, 130, 255),
+				Color3.fromRGB(160, 205, 255),
+			},
 			Stroke = Color3.fromRGB(12, 24, 60),
+			Speed = 0.22,
 		},
 	}
 
@@ -1001,13 +1052,8 @@ RunSection(function()
 		Stroke.Parent = Label
 
 		local Gradient = Instance.new("UIGradient")
-		Gradient.Rotation = 90
-		Gradient.Color = ColorSequence.new({
-			ColorSequenceKeypoint.new(0, Info.Colors[1]),
-			ColorSequenceKeypoint.new(0.55, Info.Colors[2]),
-			ColorSequenceKeypoint.new(1, Info.Colors[3]),
-		})
 		Gradient.Parent = Label
+		Anim.Add(Gradient, Info.Colors, Info.Speed)
 
 		Gui.Parent = Head
 
@@ -5261,6 +5307,471 @@ RunSection(function()
 			end
 		end)
 	end
+end)
+
+------------------------------------------------------------------
+-- SECTION: others (finds other Isaeva users, badge above their head, join)
+-- Needs a free Firebase Realtime Database. Paste its link below, e.g.
+-- "https://your-project-default-rtdb.firebaseio.com"
+------------------------------------------------------------------
+RunSection(function()
+	local DATABASE_URL = ""
+
+	local PING_EVERY = 25
+	local LIST_EVERY = 20
+	local STALE = 75
+
+	local Base = string.gsub(DATABASE_URL, "/+$", "")
+	local TeleportService = game:GetService("TeleportService")
+	local Http = request or http_request or (syn and syn.request) or (http and http.request)
+
+	local BADGE_COLORS = {
+		Color3.fromRGB(255, 255, 255),
+		Color3.fromRGB(255, 176, 214),
+		Color3.fromRGB(160, 205, 255),
+		Color3.fromRGB(255, 176, 214),
+	}
+
+	local Share = true
+	local HideTags = false
+	local Users = {}
+	local Badges = {}
+	local Rows = {}
+	local Status, CountLabel
+
+	local function Call(Method, Path, Body)
+		if Base == "" or not Http then
+			return nil
+		end
+
+		local Ok, Res = pcall(Http, {
+			Url = Base .. Path .. ".json",
+			Method = Method,
+			Headers = { ["Content-Type"] = "application/json" },
+			Body = Body and HttpService:JSONEncode(Body) or nil,
+		})
+
+		if Ok and type(Res) == "table" and type(Res.StatusCode) == "number"
+			and Res.StatusCode >= 200 and Res.StatusCode < 300 then
+			return Res.Body or ""
+		end
+
+		return nil
+	end
+
+	local StatusToken = 0
+
+	local function SetStatus(Text, Good)
+		StatusToken += 1
+
+		local Mine = StatusToken
+
+		if Status then
+			Status.Text = Text
+			Status.TextColor3 = Good and Color3.fromRGB(120, 220, 140) or Color3.fromRGB(230, 110, 110)
+		end
+
+		if Text ~= "" and Good then
+			task.delay(4, function()
+				if Mine == StatusToken and Status and Status.Parent then
+					Status.Text = ""
+				end
+			end)
+		end
+	end
+
+	----------------------------------------------------------------
+	-- check-in / list
+	----------------------------------------------------------------
+	local function Ping()
+		if not Share then
+			return
+		end
+
+		Call("PUT", "/users/" .. LocalPlayer.UserId, {
+			n = LocalPlayer.Name,
+			d = LocalPlayer.DisplayName,
+			p = game.PlaceId,
+			j = game.JobId,
+			t = os.time(),
+		})
+	end
+
+	local function Fetch()
+		local Body = Call("GET", "/users")
+
+		if not Body then
+			return false
+		end
+
+		local Ok, Data = pcall(function()
+			return HttpService:JSONDecode(Body)
+		end)
+
+		local List = {}
+
+		if Ok and type(Data) == "table" then
+			local Now = os.time()
+
+			for Id, E in pairs(Data) do
+				if type(E) == "table" and type(E.t) == "number" then
+					local Age = Now - E.t
+					local Uid = tonumber(Id)
+
+					if Age <= STALE then
+						if Uid and Uid ~= LocalPlayer.UserId then
+							table.insert(List, {
+								id = Uid,
+								n = tostring(E.n),
+								d = tostring(E.d or E.n),
+								p = tonumber(E.p) or game.PlaceId,
+								j = tostring(E.j),
+							})
+						end
+					elseif Age > 300 then
+						task.spawn(Call, "DELETE", "/users/" .. tostring(Id))
+					end
+				end
+			end
+		end
+
+		table.sort(List, function(a, b)
+			return string.lower(a.d) < string.lower(b.d)
+		end)
+
+		Users = List
+
+		return true
+	end
+
+	----------------------------------------------------------------
+	-- badge above the head of everyone using the script
+	----------------------------------------------------------------
+	local function MakeBadge(Player)
+		local Character = Player.Character
+		local Head = Character and Character:FindFirstChild("Head")
+
+		if not Head then
+			return
+		end
+
+		local Height = Head:FindFirstChild("IsaevNameTag") and 3.5 or 2.7
+		local Old = Badges[Player]
+
+		if Old and Old.Parent == Head then
+			Old.StudsOffsetWorldSpace = Vector3.new(0, Height, 0)
+			Old.Enabled = not HideTags
+			return
+		end
+
+		if Old then
+			Old:Destroy()
+		end
+
+		local Gui = Instance.new("BillboardGui")
+		Gui.Name = "IsaevUserBadge"
+		Gui.Adornee = Head
+		Gui.AlwaysOnTop = true
+		Gui.Size = UDim2.fromOffset(120, 22)
+		Gui.StudsOffsetWorldSpace = Vector3.new(0, Height, 0)
+		Gui.MaxDistance = 250
+		Gui.LightInfluence = 0
+		Gui.ResetOnSpawn = false
+		Gui.Enabled = not HideTags
+
+		local Label = Instance.new("TextLabel")
+		Label.Size = UDim2.fromScale(1, 1)
+		Label.BackgroundTransparency = 1
+		Label.Text = "ISAEVA"
+		Label.TextColor3 = Color3.new(1, 1, 1)
+		Label.Font = Enum.Font.GothamBold
+		Label.TextSize = 15
+		Label.Parent = Gui
+
+		local Stroke = Instance.new("UIStroke")
+		Stroke.Color = Color3.fromRGB(20, 22, 40)
+		Stroke.Thickness = 1.4
+		Stroke.Transparency = 0.25
+		Stroke.Parent = Label
+
+		local Gradient = Instance.new("UIGradient")
+		Gradient.Parent = Label
+		Anim.Add(Gradient, BADGE_COLORS, 0.3)
+
+		Gui.Parent = Head
+		Badges[Player] = Gui
+	end
+
+	local function Reconcile()
+		local Want = { [LocalPlayer] = true }
+
+		for _, U in ipairs(Users) do
+			if U.j == game.JobId then
+				local Pl = Players:GetPlayerByUserId(U.id)
+
+				if Pl then
+					Want[Pl] = true
+				end
+			end
+		end
+
+		for Pl, Gui in pairs(Badges) do
+			if not Want[Pl] or not Pl.Parent then
+				Gui:Destroy()
+				Badges[Pl] = nil
+			end
+		end
+
+		for Pl in pairs(Want) do
+			MakeBadge(Pl)
+		end
+	end
+
+	----------------------------------------------------------------
+	-- page
+	----------------------------------------------------------------
+	local function Label(Text, Size, Order)
+		local L = New("TextLabel", {
+			Size = Size,
+			BackgroundTransparency = 1,
+			Text = Text,
+			TextColor3 = WHITE,
+			Font = Enum.Font.GothamBlack,
+			TextSize = 15,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			TextWrapped = true,
+			LayoutOrder = Order,
+		}, OthersPage)
+
+		return L
+	end
+
+	Label("👥  Others", UDim2.new(1, 0, 0, 22), 0)
+
+	local ShareToggle = CreateToggle(OthersPage, "Broadcast Me", true, function(State)
+		Share = State
+
+		if State then
+			task.spawn(Ping)
+		else
+			task.spawn(Call, "DELETE", "/users/" .. LocalPlayer.UserId)
+		end
+	end, "ShareMe")
+	ShareToggle.LayoutOrder = 1
+
+	local HideToggle = CreateToggle(OthersPage, "Hide Script Tags", false, function(State)
+		HideTags = State
+
+		for _, Gui in pairs(Badges) do
+			Gui.Enabled = not State
+		end
+	end, "HideTags")
+	HideToggle.LayoutOrder = 2
+
+	Status = New("TextLabel", {
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		Text = "",
+		TextColor3 = DIM,
+		Font = Enum.Font.GothamMedium,
+		TextSize = 11,
+		TextWrapped = true,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		LayoutOrder = 3,
+	}, OthersPage)
+
+	CountLabel = Label("Online users", UDim2.new(1, 0, 0, 20), 4)
+	CountLabel.TextSize = 12
+	CountLabel.Font = Enum.Font.GothamBold
+
+	local Refresh
+
+	local Reload = New("TextButton", {
+		Size = UDim2.new(1, -2, 0, 30),
+		BackgroundColor3 = CONTROL,
+		Text = "Refresh list",
+		TextColor3 = WHITE,
+		Font = Enum.Font.GothamMedium,
+		TextSize = 12,
+		AutoButtonColor = false,
+		BorderSizePixel = 0,
+		LayoutOrder = 5,
+	}, OthersPage)
+	Corner(Reload, UDim.new(0, 8))
+
+	Reload.MouseEnter:Connect(function()
+		TweenService:Create(Reload, TweenInfo.new(0.12), { BackgroundColor3 = Color3.fromRGB(44, 46, 74) }):Play()
+	end)
+
+	Reload.MouseLeave:Connect(function()
+		TweenService:Create(Reload, TweenInfo.new(0.12), { BackgroundColor3 = CONTROL }):Play()
+	end)
+
+	Reload.MouseButton1Click:Connect(function()
+		task.spawn(Refresh)
+	end)
+
+	local Joining = false
+
+	local function JoinUser(U, Button)
+		if Joining then
+			return
+		end
+
+		Joining = true
+		Button.Text = "..."
+
+		local Ok = pcall(function()
+			TeleportService:TeleportToPlaceInstance(U.p, U.j, LocalPlayer)
+		end)
+
+		if not Ok then
+			SetStatus("couldn't join " .. U.d .. " (server full or closed)", false)
+		end
+
+		task.delay(6, function()
+			Joining = false
+
+			if Button.Parent then
+				Button.Text = "Join"
+			end
+		end)
+	end
+
+	local function Rebuild()
+		for _, R in ipairs(Rows) do
+			R:Destroy()
+		end
+
+		table.clear(Rows)
+
+		CountLabel.Text = "Online users (" .. #Users .. ")"
+
+		if #Users == 0 then
+			table.insert(Rows, Label("nobody else is online right now", UDim2.new(1, 0, 0, 24), 20))
+			Rows[1].Font = Enum.Font.GothamMedium
+			Rows[1].TextSize = 11
+			Rows[1].TextColor3 = DIM
+			return
+		end
+
+		for I, U in ipairs(Users) do
+			local Here = U.j == game.JobId
+
+			local Row = New("Frame", {
+				Size = UDim2.new(1, -2, 0, 44),
+				BackgroundColor3 = ROW_BG,
+				BackgroundTransparency = ROW_TRANSP,
+				BorderSizePixel = 0,
+				LayoutOrder = 20 + I,
+			}, OthersPage)
+			Corner(Row, UDim.new(0, 8))
+
+			New("TextLabel", {
+				Size = UDim2.new(1, -92, 0, 18),
+				Position = UDim2.new(0, 11, 0, 6),
+				BackgroundTransparency = 1,
+				Text = U.d .. "  @" .. U.n,
+				TextColor3 = WHITE,
+				Font = Enum.Font.GothamBold,
+				TextSize = 12,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				TextTruncate = Enum.TextTruncate.AtEnd,
+			}, Row)
+
+			New("TextLabel", {
+				Size = UDim2.new(1, -92, 0, 14),
+				Position = UDim2.new(0, 11, 0, 24),
+				BackgroundTransparency = 1,
+				Text = Here and "in your server" or "in another server",
+				TextColor3 = Here and Color3.fromRGB(120, 220, 140) or DIM,
+				Font = Enum.Font.Gotham,
+				TextSize = 10,
+				TextXAlignment = Enum.TextXAlignment.Left,
+			}, Row)
+
+			local Button = New("TextButton", {
+				Size = UDim2.new(0, 64, 0, 26),
+				Position = UDim2.new(1, -74, 0.5, -13),
+				BackgroundColor3 = Here and PANEL2 or CONTROL,
+				Text = Here and "Here" or "Join",
+				TextColor3 = Here and DIM or WHITE,
+				Font = Enum.Font.GothamMedium,
+				TextSize = 11,
+				AutoButtonColor = false,
+				BorderSizePixel = 0,
+			}, Row)
+			Corner(Button, UDim.new(0, 7))
+
+			if not Here then
+				Button.MouseButton1Click:Connect(function()
+					JoinUser(U, Button)
+				end)
+			end
+
+			table.insert(Rows, Row)
+		end
+	end
+
+	Refresh = function()
+		if Base == "" then
+			SetStatus("add your Firebase link at the top of the Others section (DATABASE_URL)", false)
+			return
+		end
+
+		if not Http then
+			SetStatus("your executor has no http request function", false)
+			return
+		end
+
+		if Fetch() then
+			SetStatus("", true)
+			Rebuild()
+			Reconcile()
+		else
+			SetStatus("can't reach the database - check the link and rules", false)
+		end
+	end
+
+	Rebuild()
+
+	task.spawn(function()
+		while UIAlive do
+			Ping()
+			task.wait(PING_EVERY)
+		end
+	end)
+
+	task.spawn(function()
+		while UIAlive do
+			Refresh()
+			task.wait(LIST_EVERY)
+		end
+	end)
+
+	task.spawn(function()
+		while UIAlive do
+			pcall(Reconcile)
+			task.wait(2)
+		end
+	end)
+
+	Conn(LocalPlayer.CharacterAdded:Connect(function()
+		task.wait(0.7)
+		pcall(Reconcile)
+	end))
+
+	OnCleanup(function()
+		for _, Gui in pairs(Badges) do
+			pcall(function()
+				Gui:Destroy()
+			end)
+		end
+
+		table.clear(Badges)
+		task.spawn(Call, "DELETE", "/users/" .. LocalPlayer.UserId)
+	end)
 end)
 
 ------------------------------------------------------------------
