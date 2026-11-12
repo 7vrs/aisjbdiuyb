@@ -922,77 +922,197 @@ local function IsAlive()
 end
 
 ------------------------------------------------------------------
--- SECTION: king outlines
+-- SECTION: custom name tags (replaces the old king outlines)
+-- Peace = black -> blue, Seth = white -> blue.
+-- Their real name and any old badge above the head is hidden for you.
 ------------------------------------------------------------------
 RunSection(function()
-	local KING_IDS = {
-		[9816835947] = true,
-		[11893825962] = true,
-		[418188364] = true,
-		[11812810326] = true,
+	local TAGS = {
+		[10454681980] = {
+			Text = "Peace",
+			Colors = { Color3.fromRGB(0, 0, 0), Color3.fromRGB(30, 60, 190), Color3.fromRGB(70, 150, 255) },
+			Stroke = Color3.fromRGB(190, 215, 255),
+		},
+		[11812810326] = {
+			Text = "Seth",
+			Colors = { Color3.fromRGB(255, 255, 255), Color3.fromRGB(150, 195, 255), Color3.fromRGB(60, 130, 255) },
+			Stroke = Color3.fromRGB(12, 24, 60),
+		},
 	}
 
-	local KING_OUTLINE_COLOR = Color3.fromRGB(70, 150, 255)
-	local KingOutlines = {}
+	local TAG_NAME = "IsaevNameTag"
+	local State = {} -- [Player] = { Gui, Humanoid, OldDisplay, Hidden = { [BillboardGui] = oldEnabled } }
 
-	local function ApplyKingOutline(Player)
-		local Character = Player.Character
+	local function Restore(Player)
+		local Data = State[Player]
 
-		if not Character or KingOutlines[Player] then
+		if not Data then
 			return
 		end
 
-		local Outline = Instance.new("Highlight")
-		Outline.Name = "IsaevKingOutline"
-		Outline.FillTransparency = 1
-		Outline.OutlineColor = KING_OUTLINE_COLOR
-		Outline.OutlineTransparency = 0
-		Outline.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-		Outline.Parent = Character
+		State[Player] = nil
 
-		KingOutlines[Player] = Outline
-	end
+		pcall(function()
+			if Data.Gui then
+				Data.Gui:Destroy()
+			end
+		end)
 
-	local function ClearKingOutline(Player)
-		local Outline = KingOutlines[Player]
+		pcall(function()
+			if Data.Humanoid and Data.Humanoid.Parent and Data.OldDisplay then
+				Data.Humanoid.DisplayDistanceType = Data.OldDisplay
+			end
+		end)
 
-		if Outline then
-			KingOutlines[Player] = nil
-
+		for Gui, Old in pairs(Data.Hidden) do
 			pcall(function()
-				Outline:Destroy()
+				if Gui.Parent then
+					Gui.Enabled = Old
+				end
 			end)
 		end
 	end
 
-	local function Watch(Player)
-		Player.CharacterAdded:Connect(function()
-			ClearKingOutline(Player)
+	local function Build(Head, Info)
+		local Gui = Instance.new("BillboardGui")
+		Gui.Name = TAG_NAME
+		Gui.Adornee = Head
+		Gui.AlwaysOnTop = true
+		Gui.Size = UDim2.fromOffset(150, 34)
+		Gui.StudsOffsetWorldSpace = Vector3.new(0, 2.4, 0)
+		Gui.MaxDistance = 400
+		Gui.LightInfluence = 0
+		Gui.ResetOnSpawn = false
 
-			if KING_IDS[Player.UserId] then
-				task.wait(0.5)
-				ApplyKingOutline(Player)
+		local Label = Instance.new("TextLabel")
+		Label.Size = UDim2.fromScale(1, 1)
+		Label.BackgroundTransparency = 1
+		Label.Text = Info.Text
+		Label.TextColor3 = Color3.new(1, 1, 1)
+		Label.Font = Enum.Font.GothamBlack
+		Label.TextSize = 26
+		Label.TextXAlignment = Enum.TextXAlignment.Center
+		Label.Parent = Gui
+
+		local Stroke = Instance.new("UIStroke")
+		Stroke.Color = Info.Stroke
+		Stroke.Thickness = 1.6
+		Stroke.Transparency = 0.15
+		Stroke.Parent = Label
+
+		local Gradient = Instance.new("UIGradient")
+		Gradient.Rotation = 90
+		Gradient.Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Info.Colors[1]),
+			ColorSequenceKeypoint.new(0.55, Info.Colors[2]),
+			ColorSequenceKeypoint.new(1, Info.Colors[3]),
+		})
+		Gradient.Parent = Label
+
+		Gui.Parent = Head
+
+		return Gui
+	end
+
+	-- hides the default name and any other billboard (old badges) above the head
+	local function Sweep(Player)
+		local Data = State[Player]
+		local Character = Player.Character
+
+		if not Data or not Character then
+			return
+		end
+
+		local Humanoid = Character:FindFirstChildOfClass("Humanoid")
+
+		if Humanoid then
+			if Data.Humanoid ~= Humanoid then
+				Data.Humanoid = Humanoid
+				Data.OldDisplay = Humanoid.DisplayDistanceType
 			end
-		end)
+
+			if Humanoid.DisplayDistanceType ~= Enum.HumanoidDisplayDistanceType.None then
+				Humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+			end
+		end
+
+		for _, Inst in ipairs(Character:GetDescendants()) do
+			if Inst:IsA("BillboardGui") and Inst.Name ~= TAG_NAME then
+				if Data.Hidden[Inst] == nil then
+					Data.Hidden[Inst] = Inst.Enabled
+				end
+
+				if Inst.Enabled then
+					Inst.Enabled = false
+				end
+			end
+		end
+	end
+
+	local function Apply(Player)
+		local Info = TAGS[Player.UserId]
+		local Character = Player.Character
+
+		if not Info or not Character then
+			return
+		end
+
+		Restore(Player)
+
+		local Head = Character:WaitForChild("Head", 5)
+
+		if not Head or Player.Character ~= Character then
+			return
+		end
+
+		State[Player] = { Gui = Build(Head, Info), Hidden = {} }
+		Sweep(Player)
+	end
+
+	local function Watch(Player)
+		if not TAGS[Player.UserId] then
+			return
+		end
+
+		Conn(Player.CharacterAdded:Connect(function()
+			task.wait(0.5)
+			Apply(Player)
+		end))
+
+		if Player.Character then
+			task.spawn(Apply, Player)
+		end
 	end
 
 	for _, Player in ipairs(Players:GetPlayers()) do
-		if KING_IDS[Player.UserId] and Player.Character then
-			ApplyKingOutline(Player)
-		end
-
 		Watch(Player)
 	end
 
 	Conn(Players.PlayerAdded:Connect(Watch))
+	Conn(Players.PlayerRemoving:Connect(Restore))
 
-	Conn(Players.PlayerRemoving:Connect(function(Player)
-		ClearKingOutline(Player)
+	-- keep the real name / old badges hidden if the game brings them back
+	local Last = 0
+
+	Conn(RunService.Heartbeat:Connect(function()
+		local Now = os.clock()
+
+		if Now - Last < 0.5 then
+			return
+		end
+
+		Last = Now
+
+		for Player, Data in pairs(State) do
+			if Data.Gui and Data.Gui.Parent then
+				Sweep(Player)
+			end
+		end
 	end))
 
 	OnCleanup(function()
-		for Player in pairs(KingOutlines) do
-			ClearKingOutline(Player)
+		for Player in pairs(State) do
+			Restore(Player)
 		end
 	end)
 end)
